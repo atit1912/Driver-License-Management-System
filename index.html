@@ -9,6 +9,25 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sarabun',sans-serif;background:#F0F2F5;color:#1a1a1a;font-size:14px;-webkit-font-smoothing:antialiased}
 button,input,select{font-family:'Sarabun',sans-serif}
+body.dark{background:#0F172A;color:#E2E8F0}
+body.dark .card,body.dark .kpi,body.dark .emp-row{background:#1E293B;border-color:#334155;color:#E2E8F0}
+body.dark .topbar{background:#1E293B;border-color:#334155}
+body.dark .sinput,body.dark .fsel{background:#0F172A;border-color:#334155;color:#E2E8F0}
+body.dark .fpill{background:#1E293B;border-color:#334155;color:#94A3B8}
+body.dark .fpill.active{background:#3B82F6;border-color:#3B82F6;color:#fff}
+body.dark .rtable th{background:#0F172A;color:#94A3B8;border-color:#334155}
+body.dark .rtable td{border-color:#1E293B;color:#CBD5E1}
+body.dark .rtable tr:hover td{background:#334155}
+body.dark .tabs{background:#0F172A}
+body.dark .tab-btn{background:transparent;color:#64748B}
+body.dark .tab-btn.active{background:#1E293B;color:#60A5FA}
+body.dark .kpi-label{color:#94A3B8}
+body.dark .kpi-sub{color:#64748B}
+body.dark .stitle{color:#CBD5E1}
+body.dark .ilabel{color:#64748B}
+body.dark .ival{color:#CBD5E1}
+body.dark .ival.hl{color:#F87171}
+body.dark .cbar-track{background:#334155}
 
 .app{display:flex;min-height:100vh}
 .sidebar{width:220px;background:#1a2942;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:40;transition:transform .3s}
@@ -166,7 +185,10 @@ nav.snav{flex:1;padding:12px 8px;overflow-y:auto}
       <button onclick="toggleSidebar()" style="border:none;background:none;font-size:22px;cursor:pointer;color:#6B7280;padding:0;line-height:1;display:none" id="ham-btn">☰</button>
       <div id="page-title" style="font-size:17px;font-weight:700;color:#111827"></div>
     </div>
-    <div style="font-size:12px;color:#9CA3AF" id="today-label"></div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:12px;color:#9CA3AF" id="today-label"></div>
+      <button onclick="toggleDark()" id="dark-btn" style="border:none;background:none;font-size:20px;cursor:pointer;line-height:1;padding:0" title="Dark mode">🌙</button>
+    </div>
   </header>
   <div class="content" id="content">
     <div class="sw-center"><div class="spin"></div><span style="font-size:13px;color:#9CA3AF">กำลังโหลด...</span></div>
@@ -187,7 +209,7 @@ const NAV=[
   {id:'notifs',   icon:'🔔',label:'แจ้งเตือน'},
   {id:'settings', icon:'⚙️',label:'ตั้งค่า'},
 ];
-const TITLES={dashboard:'หน้าหลัก',employees:'รายชื่อพนักงาน',reports:'รายงาน',notifs:'การแจ้งเตือน',settings:'ตั้งค่า'};
+const TITLES={dashboard:'หน้าหลัก',employees:'รายชื่อพนักงาน',reports:'รายงาน',notifs:'การแจ้งเตือน',settings:'ตั้งค่า',executive:'ภาพรวมผู้บริหาร'};
 const CENTERS=['ศูนย์วิจัยไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า','ศูนย์วิจัยหาดเจ้า','ศูนย์วิจัยหัวกุญแจ','ศูนย์วิจัยเพชรบุรี'];
 const CS={'ศูนย์วิจัยไร่สาม':'ไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า':'ปรับปรุงฯ','ศูนย์วิจัยหาดเจ้า':'หาดเจ้า','ศูนย์วิจัยหัวกุญแจ':'หัวกุญแจ','ศูนย์วิจัยเพชรบุรี':'เพชรบุรี'};
 const SC={
@@ -213,7 +235,21 @@ async function cachedApi(action,params={}){
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 const days=d=>{if(!d)return null;const n=new Date();n.setHours(0,0,0,0);const e=new Date(d);e.setHours(0,0,0,0);return Math.floor((e-n)/86400000)};
 const status=d=>{if(d===null)return 'normal';if(d<0)return 'expired';if(d<=15)return '15d';if(d<=30)return '30d';if(d<=45)return '45d';return 'normal'};
-const fdate=d=>{if(!d||d==='-')return '-';try{return new Date(d).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'})}catch{return d}};
+const fdate=d=>{
+  if(!d||d==='-'||d==='')return '-';
+  try{
+    // รองรับ D/M/YYYY และ ISO format
+    if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(d)){
+      const[day,mo,yr]=d.split('/');
+      return new Date(+yr,+mo-1,+day).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+    }
+    const dt=new Date(d);
+    if(isNaN(dt))return d;
+    // ปรับ timezone offset
+    const local=new Date(dt.getTime()+7*60*60*1000);
+    return local.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+  }catch{return d}
+};
 const badge=(s,d,sm)=>{const c=SC[s]||SC.normal;const lbl=d!=null?(d<0?`เกิน ${Math.abs(d)} วัน`:d===0?'วันนี้!':`${d} วัน`):c.label;return`<span class="badge ${c.cls}${sm?' badge-sm':''}"><span class="bdot"></span>${lbl}</span>`};
 const spin=(t='กำลังโหลด...')=>`<div class="sw-center"><div class="spin"></div><span style="font-size:13px;color:#9CA3AF">${t}</span></div>`;
 const skelKpi=()=>`<div class="kpi-grid">${'<div class="kpi" style="height:90px"><div style="width:60%;height:12px;background:#F0F2F5;border-radius:6px;margin-bottom:12px"></div><div style="width:40%;height:28px;background:#E8ECF0;border-radius:6px"></div></div>'.repeat(4)}</div>`;
@@ -253,6 +289,7 @@ function renderPage(){
   else if(page==='reports')pgReports(el);
   else if(page==='notifs')pgNotifs(el);
   else if(page==='settings')pgSettings(el);
+  else if(page==='executive')pgExecutive(el);
 }
 
 // ── DASHBOARD ──
@@ -436,6 +473,7 @@ function pgDetail(el,{emp,lics,trns}){
         <div><div class="ilabel">อัพเดตล่าสุด</div><div class="ival">${fdate(l.updated_at)}</div></div>
       </div>
       ${l.file_url?`<a href="${l.file_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;text-decoration:none;font-weight:500">📎 ดูไฟล์แนบ</a>`:''}
+      <button onclick="editLicense('${l.license_id}','${l.employee_id}','${l.license_type}','${l.license_number}','${l.expiry_date}')" style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;margin-left:8px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">✏️ แก้ไขวันหมดอายุ</button>
     </div>`}).join('');
 
   const trnHTML=trns.length===0?empty('ยังไม่มีประวัติการอบรม'):trns.map(t=>`
@@ -509,7 +547,7 @@ async function loadReport(type){
     const data=res.data||[];
     reportData=data;
     if(!data.length){el.innerHTML=empty('ไม่มีรายการในรายงานนี้ 🎉');return}
-    const headers=Object.keys(data[0]).slice(0,7);
+    const headers=Object.keys(data[0]).slice(0,8);
     el.innerHTML=`<div class="card card-p">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="font-size:13px;font-weight:600;color:#374151">พบ ${data.length} รายการ</div>
@@ -605,6 +643,166 @@ function pgSettings(el){
       </div>
     </div>
   </div>`;
+}
+
+// ─── DARK MODE ──────────────────────────────────────────────────────────────
+function toggleDark(){
+  const dark=document.body.classList.toggle('dark');
+  document.getElementById('dark-btn').textContent=dark?'☀️':'🌙';
+  localStorage.setItem('dlms-dark',dark?'1':'0');
+}
+if(localStorage.getItem('dlms-dark')==='1'){
+  document.body.classList.add('dark');
+  setTimeout(()=>{const b=document.getElementById('dark-btn');if(b)b.textContent='☀️'},100);
+}
+
+// ─── EDIT LICENSE ──────────────────────────────────────────────────────────
+function editLicense(licId,empId,licType,licNo,expiryDate){
+  const currentExpiry = fdate(expiryDate);
+  const modal=document.createElement('div');
+  modal.id='edit-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML=`
+    <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px">✏️ แก้ไขใบขับขี่</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">${licType} · ${licNo}</div>
+      <div style="margin-bottom:14px">
+        <div class="ilabel" style="margin-bottom:4px">วันหมดอายุใหม่ (ปี ค.ศ.)</div>
+        <input type="date" id="new-expiry" style="width:100%;padding:10px;border:1px solid #E8ECF0;border-radius:8px;font-size:14px;font-family:Sarabun,sans-serif;outline:none">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="submitEditLicense('${licId}','${empId}')" style="flex:1;padding:11px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600">💾 บันทึก</button>
+        <button onclick="document.getElementById('edit-modal').remove()" style="flex:1;padding:11px;background:#F0F2F5;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif">ยกเลิก</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+async function submitEditLicense(licId,empId){
+  const val=document.getElementById('new-expiry').value;
+  if(!val){alert('กรุณาเลือกวันหมดอายุ');return}
+  try{
+    await api('licenses.upsert',{license_id:licId,employee_id:empId,expiry_date:val});
+    document.getElementById('edit-modal').remove();
+    // clear cache แล้ว reload
+    Object.keys(_cache).forEach(k=>delete _cache[k]);
+    alert('✅ บันทึกสำเร็จ');
+    openEmp(empId);
+  }catch(e){alert('❌ '+e.message)}
+}
+
+// ─── EXECUTIVE REPORT ────────────────────────────────────────────────────────
+// เพิ่มใน NAV
+NAV.push({id:'executive',icon:'📈',label:'ภาพรวมผู้บริหาร'});
+
+async function pgExecutive(el){
+  el.innerHTML=spin('กำลังสร้างรายงานผู้บริหาร...');
+  try{
+    const[sum,centers,nearExpiry]=await Promise.all([
+      cachedApi('dashboard.summary'),
+      cachedApi('dashboard.centerStats'),
+      cachedApi('licenses.nearExpiry',{days:45}),
+    ]);
+    const arr=Array.isArray(nearExpiry)?nearExpiry:(nearExpiry?.data||[]);
+    const expired=arr.filter(l=>l.expiry_status==='expired'||l.days_remaining<0);
+    const crit=arr.filter(l=>l.days_remaining>=0&&l.days_remaining<=15);
+    const warn30=arr.filter(l=>l.days_remaining>15&&l.days_remaining<=30);
+    const warn45=arr.filter(l=>l.days_remaining>30&&l.days_remaining<=45);
+
+    el.innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- Header -->
+      <div class="card card-p" style="background:linear-gradient(135deg,#1a2942,#1D4ED8);border:none">
+        <div style="color:#fff">
+          <div style="font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Executive Dashboard</div>
+          <div style="font-size:20px;font-weight:700">DLMS — ภาพรวมผู้บริหาร</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px">${new Date().toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric',weekday:'long'})}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px">
+          ${[
+            ['พนักงานทั้งหมด',sum.total_employees,'คน','rgba(255,255,255,.15)','#fff'],
+            ['Compliance Rate',sum.compliance_rate+'%','ของใบทั้งหมด','rgba(34,197,94,.2)','#4ADE80'],
+            ['ต้องดำเนินการ',(sum.near_expiry+sum.expired),'รายการ','rgba(239,68,68,.2)','#F87171'],
+          ].map(([l,v,u,bg,c])=>`<div style="background:${bg};border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:22px;font-weight:700;color:${c}">${v}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.7)">${l}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.5)">${u}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Risk Summary -->
+      <div class="card card-p">
+        <div class="stitle">🚦 สรุปความเสี่ยง</div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+          ${[
+            ['⛔','หมดอายุแล้ว',expired.length,'#991B1B','#FEE2E2'],
+            ['🔴','เหลือ ≤ 15 วัน',crit.length,'#DC2626','#FECACA'],
+            ['🟠','เหลือ 16-30 วัน',warn30.length,'#D97706','#FEF3C7'],
+            ['🟡','เหลือ 31-45 วัน',warn45.length,'#CA8A04','#FEF9C3'],
+          ].map(([ic,l,v,c,bg])=>`<div style="background:${bg};border-radius:10px;padding:14px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:24px">${ic}</span>
+            <div><div style="font-size:22px;font-weight:700;color:${c}">${v}</div><div style="font-size:11px;color:${c}">${l}</div></div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Center Table -->
+      <div class="card card-p">
+        <div class="stitle">🏢 สรุปตามศูนย์วิจัย</div>
+        <div style="overflow-x:auto">
+          <table class="rtable">
+            <thead><tr>
+              <th>ศูนย์วิจัย</th><th style="text-align:center">พนักงาน</th>
+              <th style="text-align:center">ปกติ</th><th style="text-align:center">ใกล้หมด</th>
+              <th style="text-align:center">หมดอายุ</th><th style="text-align:center">Compliance</th>
+            </tr></thead>
+            <tbody>
+              ${centers.map(c=>{
+                const tot=(c.normal+c.near_expiry+c.expired)||1;
+                const comp=Math.round(c.normal/tot*100);
+                const compColor=comp>=90?'#16A34A':comp>=70?'#D97706':'#DC2626';
+                return`<tr>
+                  <td style="font-weight:500">${c.center.replace('ศูนย์วิจัย','').replace('ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า','ปรับปรุงพันธุ์ฯ')}</td>
+                  <td style="text-align:center">${c.total}</td>
+                  <td style="text-align:center;color:#16A34A;font-weight:600">${c.normal}</td>
+                  <td style="text-align:center;color:#D97706;font-weight:600">${c.near_expiry}</td>
+                  <td style="text-align:center;color:#DC2626;font-weight:600">${c.expired}</td>
+                  <td style="text-align:center"><span style="font-weight:700;color:${compColor}">${comp}%</span></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Urgent List -->
+      ${expired.length>0||crit.length>0?`
+      <div class="card card-p">
+        <div class="stitle">⚠️ รายการเร่งด่วน (ต้องดำเนินการ)</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${[...expired,...crit].slice(0,10).map(l=>`
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:${l.days_remaining<0?'#FEE2E2':'#FECACA'};border-radius:8px;flex-wrap:wrap;gap:6px">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#7F1D1D">${l.employee_name||l.employee_id}</div>
+                <div style="font-size:11px;color:#991B1B">${l.license_type} · ${l.research_center||''}</div>
+              </div>
+              ${badge(l.expiry_status,l.days_remaining,true)}
+            </div>`).join('')}
+        </div>
+      </div>`:''}
+
+      <!-- Export Button -->
+      <button onclick="exportExec()" class="btn-primary" style="width:100%;padding:14px;font-size:14px;justify-content:center;border-radius:10px">
+        📊 Export รายงานผู้บริหาร (CSV)
+      </button>
+
+    </div>`;
+  }catch(e){el.innerHTML=err(e.message)}
+}
+
+function exportExec(){
+  alert('กำลังดาวน์โหลด — ใช้ปุ่ม "รายงานรวมทั้งหมด" ในหน้ารายงานครับ');
 }
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
