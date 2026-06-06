@@ -12,6 +12,8 @@ button,input,select{font-family:'Sarabun',sans-serif}
 
 .app{display:flex;min-height:100vh}
 .sidebar{width:220px;background:#1a2942;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:40;transition:transform .3s}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:39;-webkit-tap-highlight-color:transparent}
+.overlay.show{display:block}
 .main{flex:1;margin-left:220px;display:flex;flex-direction:column;min-height:100vh}
 .topbar{background:#fff;border-bottom:1px solid #E8ECF0;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .content{flex:1;padding:20px;padding-bottom:80px;max-width:1100px}
@@ -138,6 +140,7 @@ nav.snav{flex:1;padding:12px 8px;overflow-y:auto}
   .ig{grid-template-columns:1fr 1fr}
   .donut-wrap{flex-direction:column}
   .chart-grid{grid-template-columns:1fr!important}
+  #ham-btn{display:block!important}
 }
 </style>
 </head>
@@ -155,6 +158,7 @@ nav.snav{flex:1;padding:12px 8px;overflow-y:auto}
     <div><div style="font-size:12px;font-weight:600;color:#fff">SHE&En Officer</div><div style="font-size:10px;color:rgba(255,255,255,.4)">admin</div></div>
   </div>
 </aside>
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <div class="main">
   <header class="topbar">
@@ -196,6 +200,15 @@ const SC={
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let page='dashboard', empList=[], empCache={}, reportData=null, activeStatus='', sidebarOpen=false;
+const _cache={}, _CACHE_TTL=5*60*1000;
+async function cachedApi(action,params={}){
+  const k=action+JSON.stringify(params);
+  const now=Date.now();
+  if(_cache[k]&&now-_cache[k].t<_CACHE_TTL)return _cache[k].d;
+  const d=await api(action,params);
+  _cache[k]={d,t:now};
+  return d;
+}
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 const days=d=>{if(!d)return null;const n=new Date();n.setHours(0,0,0,0);const e=new Date(d);e.setHours(0,0,0,0);return Math.floor((e-n)/86400000)};
@@ -203,6 +216,7 @@ const status=d=>{if(d===null)return 'normal';if(d<0)return 'expired';if(d<=15)re
 const fdate=d=>{if(!d||d==='-')return '-';try{return new Date(d).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'})}catch{return d}};
 const badge=(s,d,sm)=>{const c=SC[s]||SC.normal;const lbl=d!=null?(d<0?`เกิน ${Math.abs(d)} วัน`:d===0?'วันนี้!':`${d} วัน`):c.label;return`<span class="badge ${c.cls}${sm?' badge-sm':''}"><span class="bdot"></span>${lbl}</span>`};
 const spin=(t='กำลังโหลด...')=>`<div class="sw-center"><div class="spin"></div><span style="font-size:13px;color:#9CA3AF">${t}</span></div>`;
+const skelKpi=()=>`<div class="kpi-grid">${'<div class="kpi" style="height:90px"><div style="width:60%;height:12px;background:#F0F2F5;border-radius:6px;margin-bottom:12px"></div><div style="width:40%;height:28px;background:#E8ECF0;border-radius:6px"></div></div>'.repeat(4)}</div>`;
 const empty=(t='ไม่มีข้อมูล')=>`<div style="text-align:center;padding:40px;color:#9CA3AF"><div style="font-size:36px;margin-bottom:8px">📭</div><div style="font-size:13px">${t}</div></div>`;
 const err=e=>`<div style="padding:16px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;color:#DC2626;font-size:13px">❌ ${e}</div>`;
 
@@ -226,8 +240,9 @@ function renderNav(){
   const hb=document.getElementById('ham-btn');
   if(hb)hb.style.display='block';
 }
-function go(p){page=p;empCache._detail=null;activeStatus='';renderNav();renderPage()}
-function toggleSidebar(){sidebarOpen=!sidebarOpen;document.getElementById('sidebar').classList.toggle('open',sidebarOpen)}
+function go(p){page=p;empCache._detail=null;activeStatus='';closeSidebar();renderNav();renderPage()}
+function toggleSidebar(){sidebarOpen=!sidebarOpen;document.getElementById('sidebar').classList.toggle('open',sidebarOpen);document.getElementById('overlay').classList.toggle('show',sidebarOpen)}
+function closeSidebar(){sidebarOpen=false;document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('show')}
 
 // ─── PAGES ──────────────────────────────────────────────────────────────────
 function renderPage(){
@@ -242,9 +257,9 @@ function renderPage(){
 
 // ── DASHBOARD ──
 async function pgDashboard(el){
-  el.innerHTML=spin('กำลังโหลด Dashboard...');
+  el.innerHTML=skelKpi()+spin('กำลังดึงข้อมูล...');
   try{
-    const[s,centers]=await Promise.all([api('dashboard.summary'),api('dashboard.centerStats')]);
+    const[s,centers]=await Promise.all([cachedApi('dashboard.summary'),cachedApi('dashboard.centerStats')]);
     el.innerHTML=`
     <div class="kpi-grid">
       ${kpi('พนักงานทั้งหมด',s.total_employees,'5 ศูนย์วิจัย','#1D4ED8','#DBEAFE','👥')}
@@ -330,7 +345,7 @@ function donut(ls){
 async function pgEmployees(el){
   el.innerHTML=spin('กำลังโหลดรายชื่อ...');
   try{
-    empList=await api('employees.list',{pageSize:100});
+    empList=await cachedApi('employees.list',{pageSize:100});
     renderEmpList(el);
   }catch(e){el.innerHTML=err(e.message)}
 }
