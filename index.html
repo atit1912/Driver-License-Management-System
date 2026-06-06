@@ -222,7 +222,13 @@ const SC={
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let page='dashboard', empList=[], empCache={}, reportData=null, activeStatus='', sidebarOpen=false;
-const _cache={}, _CACHE_TTL=5*60*1000;
+const _cache={}, _CACHE_TTL=10*60*1000; // 10 นาที
+// Preload dashboard data ตอน init
+function preloadData(){
+  cachedApi('dashboard.summary').catch(()=>{});
+  cachedApi('dashboard.centerStats').catch(()=>{});
+  cachedApi('employees.list',{pageSize:100}).then(d=>{empList=d}).catch(()=>{});
+}
 async function cachedApi(action,params={}){
   const k=action+JSON.stringify(params);
   const now=Date.now();
@@ -486,6 +492,10 @@ function pgDetail(el,{emp,lics,trns}){
         <div><div class="ilabel">สถานะ</div><div class="ival">${badge(t.due_status,t.days_remaining,true)}</div></div>
       </div>
       ${t.certificate_url?`<a href="${t.certificate_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;text-decoration:none;font-weight:500">📜 ดูใบรับรอง</a>`:''}
+      <button onclick="editTraining('${t.training_id}','${empId}','${t.course_name}','${t.training_date}','${t.trainer||''}','${t.next_due_date||''}')"
+        style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;margin-left:8px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">
+        ✏️ แก้ไข
+      </button>
     </div>`).join('');
 
   el.innerHTML=`
@@ -509,7 +519,13 @@ function pgDetail(el,{emp,lics,trns}){
       <button class="tab-btn" id="tt" onclick="swTab('t')">🎓 การอบรม (${trns.length})</button>
     </div>
     <div id="tc-l">${licHTML}</div>
-    <div id="tc-t" style="display:none">${trnHTML}</div>
+    <div id="tc-t" style="display:none">
+      ${trnHTML}
+      <button onclick="addTraining('${emp.employee_id}')"
+        style="width:100%;margin-top:8px;padding:13px;background:#EFF6FF;color:#1D4ED8;border:2px dashed #BFDBFE;border-radius:10px;font-size:13px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
+        ➕ บันทึกการอบรมใหม่
+      </button>
+    </div>
   </div>`;
 }
 function swTab(t){
@@ -658,32 +674,52 @@ if(localStorage.getItem('dlms-dark')==='1'){
 
 // ─── EDIT LICENSE ──────────────────────────────────────────────────────────
 function editLicense(licId,empId,licType,licNo,expiryDate){
-  const currentExpiry = fdate(expiryDate);
   const modal=document.createElement('div');
   modal.id='edit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;display:flex;align-items:center;justify-content:center;padding:20px';
+  // แปลง ISO date เป็น YYYY-MM-DD สำหรับ input[type=date]
+  let dateVal='';
+  if(expiryDate&&expiryDate!=='-'){
+    try{const d=new Date(expiryDate);dateVal=d.toISOString().slice(0,10);}catch{}
+  }
   modal.innerHTML=`
-    <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
       <div style="font-size:16px;font-weight:700;margin-bottom:4px">✏️ แก้ไขใบขับขี่</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">${licType} · ${licNo}</div>
-      <div style="margin-bottom:14px">
-        <div class="ilabel" style="margin-bottom:4px">วันหมดอายุใหม่ (ปี ค.ศ.)</div>
-        <input type="date" id="new-expiry" style="width:100%;padding:10px;border:1px solid #E8ECF0;border-radius:8px;font-size:14px;font-family:Sarabun,sans-serif;outline:none">
+      <div style="font-size:12px;color:#6B7280;margin-bottom:18px">${licType}</div>
+
+      <div style="margin-bottom:13px">
+        <div class="ilabel" style="margin-bottom:5px">เลขที่ใบขับขี่</div>
+        <input id="edit-licno" value="${licNo}" placeholder="เลขที่ใบขับขี่"
+          style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:14px;font-family:Sarabun,sans-serif;outline:none">
       </div>
-      <div style="display:flex;gap:8px">
-        <button onclick="submitEditLicense('${licId}','${empId}')" style="flex:1;padding:11px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600">💾 บันทึก</button>
-        <button onclick="document.getElementById('edit-modal').remove()" style="flex:1;padding:11px;background:#F0F2F5;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif">ยกเลิก</button>
+
+      <div style="margin-bottom:13px">
+        <div class="ilabel" style="margin-bottom:5px">วันหมดอายุ (ปี ค.ศ.)</div>
+        <input type="date" id="edit-expiry" value="${dateVal}"
+          style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:14px;font-family:Sarabun,sans-serif;outline:none">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <button onclick="submitEditLicense('${licId}','${empId}')"
+          style="flex:1;padding:12px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600">
+          💾 บันทึก
+        </button>
+        <button onclick="document.getElementById('edit-modal').remove()"
+          style="flex:1;padding:12px;background:#F0F2F5;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif">
+          ยกเลิก
+        </button>
       </div>
     </div>`;
   document.body.appendChild(modal);
 }
 async function submitEditLicense(licId,empId){
-  const val=document.getElementById('new-expiry').value;
-  if(!val){alert('กรุณาเลือกวันหมดอายุ');return}
+  const licNo=document.getElementById('edit-licno').value.trim();
+  const expiry=document.getElementById('edit-expiry').value;
+  if(!expiry){alert('กรุณาเลือกวันหมดอายุ');return}
+  if(!licNo){alert('กรุณากรอกเลขที่ใบขับขี่');return}
   try{
-    await api('licenses.upsert',{license_id:licId,employee_id:empId,expiry_date:val});
+    await api('licenses.upsert',{license_id:licId,employee_id:empId,license_number:licNo,expiry_date:expiry});
     document.getElementById('edit-modal').remove();
-    // clear cache แล้ว reload
     Object.keys(_cache).forEach(k=>delete _cache[k]);
     alert('✅ บันทึกสำเร็จ');
     openEmp(empId);
@@ -805,9 +841,87 @@ function exportExec(){
   alert('กำลังดาวน์โหลด — ใช้ปุ่ม "รายงานรวมทั้งหมด" ในหน้ารายงานครับ');
 }
 
+// ─── TRAINING MODAL ───────────────────────────────────────────────────────────
+function addTraining(empId){
+  showTrainingModal(null, empId, '', '', '', '');
+}
+function editTraining(trnId,empId,courseName,trainingDate,trainer,nextDue){
+  showTrainingModal(trnId,empId,courseName,trainingDate,trainer,nextDue);
+}
+function showTrainingModal(trnId,empId,courseName,trainingDate,trainer,nextDue){
+  const isEdit=!!trnId;
+  const toDateVal=d=>{
+    if(!d||d==='-'||d==='undefined')return '';
+    try{return new Date(d).toISOString().slice(0,10);}catch{return '';}
+  };
+  const modal=document.createElement('div');
+  modal.id='trn-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto';
+  modal.innerHTML=`
+    <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px">${isEdit?'✏️ แก้ไขการอบรม':'➕ บันทึกการอบรม'}</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:18px">${isEdit?'แก้ไขข้อมูลการอบรม':'เพิ่มประวัติการอบรมใหม่'}</div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <div class="ilabel" style="margin-bottom:5px">หลักสูตร / ชื่อการอบรม *</div>
+          <input id="trn-course" value="${courseName||''}" placeholder="เช่น การขับรถอย่างปลอดภัย"
+            style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
+        </div>
+        <div>
+          <div class="ilabel" style="margin-bottom:5px">วันที่อบรม *</div>
+          <input type="date" id="trn-date" value="${toDateVal(trainingDate)}"
+            style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
+        </div>
+        <div>
+          <div class="ilabel" style="margin-bottom:5px">ผู้สอน / หน่วยงาน</div>
+          <input id="trn-trainer" value="${trainer||''}" placeholder="เช่น SHE&En Center"
+            style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
+        </div>
+        <div>
+          <div class="ilabel" style="margin-bottom:5px">วันครบกำหนดอบรมครั้งต่อไป</div>
+          <input type="date" id="trn-due" value="${toDateVal(nextDue)}"
+            style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
+          <div style="font-size:10.5px;color:#9CA3AF;margin-top:4px">ระบบจะแจ้งเตือน 45/30/15 วันก่อนถึงกำหนด</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:20px">
+        <button onclick="submitTraining('${trnId||''}','${empId}')"
+          style="flex:1;padding:12px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600">
+          💾 บันทึก
+        </button>
+        <button onclick="document.getElementById('trn-modal').remove()"
+          style="flex:1;padding:12px;background:#F0F2F5;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif">
+          ยกเลิก
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+async function submitTraining(trnId,empId){
+  const course=document.getElementById('trn-course').value.trim();
+  const date=document.getElementById('trn-date').value;
+  const trainer=document.getElementById('trn-trainer').value.trim();
+  const due=document.getElementById('trn-due').value;
+  if(!course){alert('กรุณากรอกชื่อหลักสูตร');return}
+  if(!date){alert('กรุณาเลือกวันที่อบรม');return}
+  try{
+    const payload={employee_id:empId,course_name:course,training_date:date,trainer,next_due_date:due};
+    if(trnId)payload.training_id=trnId;
+    const action=trnId?'trainings.update':'trainings.create';
+    await api(action,payload);
+    document.getElementById('trn-modal').remove();
+    Object.keys(_cache).forEach(k=>delete _cache[k]);
+    alert('✅ บันทึกการอบรมสำเร็จ');
+    openEmp(empId);
+  }catch(e){alert('❌ '+e.message)}
+}
+
 // ─── INIT ────────────────────────────────────────────────────────────────────
 renderNav();
 renderPage();
+setTimeout(preloadData, 500); // preload หลัง render 0.5s
 </script>
 </body>
 </html>
