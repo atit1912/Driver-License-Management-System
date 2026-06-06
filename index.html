@@ -242,18 +242,25 @@ async function cachedApi(action,params={}){
 const days=d=>{if(!d)return null;const n=new Date();n.setHours(0,0,0,0);const e=new Date(d);e.setHours(0,0,0,0);return Math.floor((e-n)/86400000)};
 const status=d=>{if(d===null)return 'normal';if(d<0)return 'expired';if(d<=15)return '15d';if(d<=30)return '30d';if(d<=45)return '45d';return 'normal'};
 const fdate=d=>{
-  if(!d||d==='-'||d==='')return '-';
+  if(!d||d==='-'||d==='undefined'||d==='')return '-';
   try{
-    // รองรับ D/M/YYYY และ ISO format
+    // D/M/YYYY หรือ DD/MM/YYYY
     if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(d)){
-      const[day,mo,yr]=d.split('/');
-      return new Date(+yr,+mo-1,+day).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+      const[dd,mm,yy]=d.split('/').map(Number);
+      return String(dd).padStart(2,'0')+'/'+String(mm).padStart(2,'0')+'/'+yy;
     }
-    const dt=new Date(d);
-    if(isNaN(dt))return d;
-    // ปรับ timezone offset
-    const local=new Date(dt.getTime()+7*60*60*1000);
-    return local.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+    // YYYY-MM-DD (ISO date only, no time)
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)){
+      const[yy,mm,dd]=d.split('-').map(Number);
+      return String(dd).padStart(2,'0')+'/'+String(mm).padStart(2,'0')+'/'+yy;
+    }
+    // YYYY-MM-DDTHH:mm:ss.sssZ — ตัดเฉพาะ date part ออกมา ไม่แปลง timezone
+    if(d.includes('T')){
+      const datePart=d.split('T')[0]; // "2028-05-06"
+      const[yy,mm,dd]=datePart.split('-').map(Number);
+      return String(dd).padStart(2,'0')+'/'+String(mm).padStart(2,'0')+'/'+yy;
+    }
+    return d;
   }catch{return d}
 };
 const badge=(s,d,sm)=>{const c=SC[s]||SC.normal;const lbl=d!=null?(d<0?`เกิน ${Math.abs(d)} วัน`:d===0?'วันนี้!':`${d} วัน`):c.label;return`<span class="badge ${c.cls}${sm?' badge-sm':''}"><span class="bdot"></span>${lbl}</span>`};
@@ -563,7 +570,19 @@ async function loadReport(type){
     const data=res.data||[];
     reportData=data;
     if(!data.length){el.innerHTML=empty('ไม่มีรายการในรายงานนี้ 🎉');return}
-    const headers=Object.keys(data[0]).slice(0,8);
+    // จัด columns ให้ full_name ขึ้นก่อน และแปลงวันที่
+    const allKeys=Object.keys(data[0]);
+    const priority=['full_name','research_center','license_type','license_number','expiry_date','days_remaining','status','training_status','corp_license_no','corp_expiry','corp_status','govt_license_no','govt_expiry','govt_status'];
+    const headers=[...priority.filter(k=>allKeys.includes(k)),...allKeys.filter(k=>!priority.includes(k))].slice(0,9);
+    const thLabel={full_name:'ชื่อ-นามสกุล',research_center:'ศูนย์วิจัย',license_type:'ประเภทใบขับขี่',license_number:'เลขที่ใบขับขี่',expiry_date:'วันหมดอายุ',days_remaining:'วันคงเหลือ',status:'สถานะ',training_status:'สถานะอบรม',corp_license_no:'เลขใบเครือฯ',corp_expiry:'หมดอายุเครือฯ',corp_status:'สถานะเครือฯ',govt_license_no:'เลขใบราชการ',govt_expiry:'หมดอายุราชการ',govt_status:'สถานะราชการ'};
+    const dateKeys=['expiry_date','corp_expiry','govt_expiry','last_training_date','next_training_due'];
+    const statusTh={normal:'ปกติ','45d':'45 วัน','30d':'30 วัน','15d':'15 วัน',expired:'หมดอายุ'};
+    const fmtCell=(k,v)=>{
+      if(v===null||v===undefined||v==='')return '-';
+      if(dateKeys.includes(k))return fdate(String(v));
+      if(k==='status'||k==='corp_status'||k==='govt_status')return statusTh[v]||v;
+      return String(v);
+    };
     el.innerHTML=`<div class="card card-p">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="font-size:13px;font-weight:600;color:#374151">พบ ${data.length} รายการ</div>
@@ -571,8 +590,8 @@ async function loadReport(type){
       </div>
       <div style="overflow-x:auto;border-radius:8px;border:1px solid #E8ECF0">
         <table class="rtable">
-          <thead><tr>${headers.map(h=>`<th>${h.replace(/_/g,' ')}</th>`).join('')}</tr></thead>
-          <tbody>${data.slice(0,30).map(r=>`<tr>${headers.map(h=>`<td>${r[h]??'-'}</td>`).join('')}</tr>`).join('')}</tbody>
+          <thead><tr>${headers.map(h=>`<th>${thLabel[h]||h.replace(/_/g,' ')}</th>`).join('')}</tr></thead>
+          <tbody>${data.slice(0,30).map(r=>`<tr>${headers.map(h=>`<td>${fmtCell(h,r[h])}</td>`).join('')}</tr>`).join('')}</tbody>
         </table>
         ${data.length>30?`<div style="padding:10px;text-align:center;font-size:11px;color:#9CA3AF">แสดง 30 จาก ${data.length} รายการ — ดาวน์โหลด CSV เพื่อดูทั้งหมด</div>`:''}
       </div>
