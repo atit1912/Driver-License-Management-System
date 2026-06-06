@@ -2,732 +2,599 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>DLMS — ระบบจัดการใบขับขี่</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.8.0/Recharts.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Sarabun',sans-serif;background:#F5F4F0;color:#1a1a1a;font-size:14px}
-a{text-decoration:none}
-button{cursor:pointer;font-family:'Sarabun',sans-serif}
-input,select{font-family:'Sarabun',sans-serif}
+body{font-family:'Sarabun',sans-serif;background:#F0F2F5;color:#1a1a1a;font-size:14px;-webkit-font-smoothing:antialiased}
+button,input,select{font-family:'Sarabun',sans-serif}
 
-/* Layout */
 .app{display:flex;min-height:100vh}
-.sidebar{width:220px;background:#fff;border-right:1px solid #E8E6E0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:40}
+.sidebar{width:220px;background:#1a2942;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:40;transition:transform .3s}
 .main{flex:1;margin-left:220px;display:flex;flex-direction:column;min-height:100vh}
-.topbar{background:#fff;border-bottom:1px solid #E8E6E0;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30}
-.content{flex:1;padding:20px;padding-bottom:80px}
+.topbar{background:#fff;border-bottom:1px solid #E8ECF0;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.content{flex:1;padding:20px;padding-bottom:80px;max-width:1100px}
 
 /* Sidebar */
-.logo{padding:18px 16px 14px;border-bottom:1px solid #F0EEE8;display:flex;align-items:center;gap:10px}
-.logo-icon{width:36px;height:36px;border-radius:10px;background:#1565C0;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.logo-text{font-weight:700;font-size:15px;line-height:1.1}
-.logo-sub{font-size:10px;color:#999}
-nav.sidebar-nav{flex:1;padding:10px 8px;overflow-y:auto}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:2px;font-size:13.5px;font-weight:500;color:#555;cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left}
-.nav-item:hover{background:#F5F4F0}
-.nav-item.active{background:#1565C015;color:#1565C0}
-.nav-icon{font-size:16px}
-.user-bar{padding:12px 16px;border-top:1px solid #F0EEE8;display:flex;align-items:center;gap:8px}
-.user-avatar{width:30px;height:30px;border-radius:50%;background:#1565C020;color:#1565C0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.logo{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px}
+.logo-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#3B82F6,#1D4ED8);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.logo-text{font-weight:700;font-size:15px;color:#fff;line-height:1.1}
+.logo-sub{font-size:10px;color:rgba(255,255,255,.4)}
+nav.snav{flex:1;padding:12px 8px;overflow-y:auto}
+.ni{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:2px;font-size:13.5px;font-weight:500;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left}
+.ni:hover{background:rgba(255,255,255,.08);color:#fff}
+.ni.active{background:rgba(59,130,246,.25);color:#93C5FD}
+.ni-icon{font-size:17px;width:20px;text-align:center}
+.ubar{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:8px}
+.uavatar{width:32px;height:32px;border-radius:50%;background:rgba(59,130,246,.3);color:#93C5FD;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
 
-/* Bottom Nav (mobile) */
-.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E8E6E0;justify-content:space-around;padding:6px 0 8px;z-index:40}
-.bnav-item{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:500;color:#999;border:none;background:none;padding:4px 8px;cursor:pointer;transition:color .15s}
-.bnav-item.active{color:#1565C0}
-.bnav-icon{font-size:20px}
+/* Bottom nav mobile */
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:#1a2942;border-top:1px solid rgba(255,255,255,.1);justify-content:space-around;padding:6px 0 8px;z-index:40}
+.bni{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:500;color:rgba(255,255,255,.5);border:none;background:none;padding:4px 8px;cursor:pointer;transition:color .15s;font-family:'Sarabun',sans-serif}
+.bni.active{color:#93C5FD}
+.bni-icon{font-size:21px}
 
 /* Cards */
-.card{background:#fff;border-radius:12px;border:1px solid #E8E6E0;overflow:hidden}
-.grid-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.kpi-card{background:#fff;border-radius:12px;border:1px solid #E8E6E0;padding:18px 16px}
-.kpi-num{font-size:30px;font-weight:700;line-height:1}
-.kpi-label{font-size:11px;color:#888;font-weight:500;letter-spacing:.03em;margin-bottom:6px}
-.kpi-sub{font-size:11px;color:#bbb;margin-top:3px}
-.kpi-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;float:right;margin-top:-4px}
+.card{background:#fff;border-radius:14px;border:1px solid #E8ECF0;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.card-p{padding:18px 20px}
 
-/* Status Badge */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:500;white-space:nowrap;border:1px solid}
-.badge-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.badge-sm{padding:2px 7px;font-size:11px}
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:#fff;border-radius:14px;border:1px solid #E8ECF0;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.kpi-top{display:flex;justify-content:space-between;align-items:flex-start}
+.kpi-label{font-size:11.5px;color:#8896A0;font-weight:500;letter-spacing:.03em;margin-bottom:6px}
+.kpi-val{font-size:32px;font-weight:700;line-height:1}
+.kpi-sub{font-size:11px;color:#B0BDC8;margin-top:4px}
+.kpi-ico{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
 
-/* Status colors */
-.s-normal{color:#3B6D11;background:#EAF3DE;border-color:#639922}.s-normal .badge-dot{background:#639922}
-.s-45d{color:#854F0B;background:#FAEEDA;border-color:#BA7517}.s-45d .badge-dot{background:#EF9F27}
-.s-30d{color:#7C3D00;background:#FEF0E6;border-color:#D05538}.s-30d .badge-dot{background:#D05538}
-.s-15d{color:#A32D2D;background:#FCEBEB;border-color:#E24B4A}.s-15d .badge-dot{background:#E24B4A}
-.s-expired{color:#791F1F;background:#F7C1C1;border-color:#A32D2D}.s-expired .badge-dot{background:#A32D2D}
+/* Status badge */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;white-space:nowrap;border:1px solid}
+.badge-sm{padding:2px 8px;font-size:11px}
+.bdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sn{color:#166534;background:#DCFCE7;border-color:#86EFAC}.sn .bdot{background:#16A34A}
+.s45{color:#92400E;background:#FEF3C7;border-color:#FCD34D}.s45 .bdot{background:#D97706}
+.s30{color:#9A3412;background:#FEE2E2;border-color:#FCA5A5}.s30 .bdot{background:#DC2626}
+.s15{color:#7F1D1D;background:#FECACA;border-color:#F87171}.s15 .bdot{background:#EF4444}
+.sx{color:#fff;background:#991B1B;border-color:#7F1D1D}.sx .bdot{background:#fff}
 
 /* Alert row */
-.alert-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;border:1px solid;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.alert-row{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:10px;border:1px solid;flex-wrap:wrap;gap:8px;margin-bottom:6px}
 
-/* Employee list */
-.emp-row{background:#fff;border-radius:10px;border:1px solid #E8E6E0;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;cursor:pointer;transition:box-shadow .15s;margin-bottom:8px}
-.emp-row:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
-.emp-avatar{width:42px;height:42px;border-radius:50%;background:#1565C015;color:#1565C0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
+/* Employee */
+.emp-row{background:#fff;border-radius:12px;border:1px solid #E8ECF0;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;cursor:pointer;transition:all .15s;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.emp-row:hover{box-shadow:0 3px 12px rgba(0,0,0,.08);border-color:#C7D2DA;transform:translateY(-1px)}
+.eavatar{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#DBEAFE,#BFDBFE);color:#1D4ED8;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0}
 
 /* Tabs */
-.tabs{display:flex;background:#fff;border-radius:10px;border:1px solid #E8E6E0;overflow:hidden;margin-bottom:14px}
-.tab-btn{flex:1;padding:11px 0;border:none;cursor:pointer;font-size:13px;font-weight:500;background:#fff;color:#555;transition:all .2s;font-family:'Sarabun',sans-serif}
-.tab-btn.active{background:#1565C0;color:#fff;font-weight:600}
+.tabs{display:flex;background:#F0F2F5;border-radius:10px;padding:3px;margin-bottom:14px;gap:3px}
+.tab-btn{flex:1;padding:9px 0;border:none;cursor:pointer;font-size:13px;font-weight:500;background:transparent;color:#6B7280;transition:all .2s;border-radius:8px;font-family:'Sarabun',sans-serif}
+.tab-btn.active{background:#fff;color:#1D4ED8;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 
-/* Forms */
-.search-wrap{position:relative}
-.search-wrap .icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#bbb;font-size:14px}
-.search-input{width:100%;padding:8px 12px 8px 32px;border:1px solid #E8E6E0;border-radius:8px;font-size:13px;outline:none;background:#FAFAF8;font-family:'Sarabun',sans-serif}
-.search-input:focus{border-color:#1565C0}
-select.filter-select{padding:7px 10px;border:1px solid #E8E6E0;border-radius:8px;font-size:12px;background:#FAFAF8;color:#333;outline:none;font-family:'Sarabun',sans-serif}
-.filter-pill{padding:5px 12px;border:1px solid #E8E6E0;border-radius:20px;font-size:11.5px;background:#fff;color:#555;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s}
-.filter-pill.active{background:#1565C0;color:#fff;border-color:#1565C0}
+/* Form elements */
+.sw{position:relative}
+.sw .sico{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#9CA3AF;font-size:15px;pointer-events:none}
+.sinput{width:100%;padding:9px 12px 9px 34px;border:1px solid #E8ECF0;border-radius:10px;font-size:13px;outline:none;background:#FAFBFC;transition:border-color .15s;font-family:'Sarabun',sans-serif}
+.sinput:focus{border-color:#3B82F6;background:#fff}
+.fsel{padding:8px 12px;border:1px solid #E8ECF0;border-radius:10px;font-size:12.5px;background:#FAFBFC;color:#374151;outline:none;font-family:'Sarabun',sans-serif;cursor:pointer}
+.fpill{padding:6px 14px;border:1px solid #E8ECF0;border-radius:20px;font-size:12px;background:#fff;color:#6B7280;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s;font-weight:500}
+.fpill.active{background:#1D4ED8;color:#fff;border-color:#1D4ED8}
+.fpill:hover:not(.active){background:#F0F2F5;border-color:#C7D2DA}
 
 /* Info grid */
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.info-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
-.info-val{font-size:13px;color:#333}
-.info-val.hl{color:#A32D2D;font-weight:600}
+.ig{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ilabel{font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.ival{font-size:13px;color:#374151}
+.ival.hl{color:#DC2626;font-weight:600}
 
 /* Spinner */
-.spinner-wrap{display:flex;flex-direction:column;align-items:center;padding:40px;gap:12px}
-.spinner{width:32px;height:32px;border-radius:50%;border:3px solid #E8E6E0;border-top-color:#1565C0;animation:spin .8s linear infinite}
+.sw-center{display:flex;flex-direction:column;align-items:center;padding:50px;gap:14px}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid #E8ECF0;border-top-color:#3B82F6;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* Section title */
+.stitle{font-size:13px;font-weight:600;color:#374151;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+
 /* Table */
-.report-table{width:100%;border-collapse:collapse;font-size:12px}
-.report-table th{padding:8px 10px;text-align:left;font-weight:600;color:#555;border-bottom:1px solid #E8E6E0;background:#F5F4F0;white-space:nowrap}
-.report-table td{padding:8px 10px;border-bottom:1px solid #F5F4F0;color:#333;white-space:nowrap}
+.rtable{width:100%;border-collapse:collapse;font-size:12.5px}
+.rtable th{padding:9px 12px;text-align:left;font-weight:600;color:#6B7280;border-bottom:2px solid #E8ECF0;background:#F8FAFC;white-space:nowrap}
+.rtable td{padding:9px 12px;border-bottom:1px solid #F0F2F5;color:#374151;white-space:nowrap}
+.rtable tr:hover td{background:#F8FAFC}
 
-/* Bar chart manual */
-.bar-track{flex:1;height:8px;background:#F0EEE8;border-radius:4px;overflow:hidden}
-.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+/* Chart bars (CSS only) */
+.cbar-wrap{display:flex;flex-direction:column;gap:10px}
+.cbar-row{display:flex;align-items:center;gap:10px}
+.cbar-label{font-size:11.5px;color:#6B7280;min-width:90px;text-align:right;flex-shrink:0}
+.cbar-track{flex:1;height:10px;background:#F0F2F5;border-radius:5px;overflow:hidden;display:flex;gap:2px}
+.cbar-seg{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.cbar-num{font-size:11px;color:#9CA3AF;min-width:24px;text-align:right;flex-shrink:0}
 
-/* Chart legend */
-.legend{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px}
-.legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:#666}
-.legend-dot{width:8px;height:8px;border-radius:50%}
+/* Donut chart */
+.donut-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.donut-legend{display:flex;flex-direction:column;gap:7px;flex:1;min-width:120px}
+.dl-item{display:flex;align-items:center;gap:7px;font-size:12px;color:#374151}
+.dl-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
 
+/* Btn */
+.btn-primary{padding:8px 16px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Sarabun',sans-serif;font-weight:500;transition:background .15s;display:inline-flex;align-items:center;gap:5px}
+.btn-primary:hover{background:#1E40AF}
+.btn-ghost{padding:7px 14px;background:#fff;color:#374151;border:1px solid #E8ECF0;border-radius:8px;font-size:12.5px;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s}
+.btn-ghost:hover{background:#F0F2F5}
+.back-btn{background:none;border:none;color:#3B82F6;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:0;margin-bottom:14px;font-family:'Sarabun',sans-serif;font-weight:500}
+.back-btn:hover{color:#1D4ED8}
+
+/* Notif */
+.notif-card{padding:13px 15px;margin-bottom:8px;display:flex;gap:11px;transition:background .15s}
+.notif-card.unread{background:#EFF6FF;border-color:#BFDBFE}
+
+/* Responsive */
 @media(max-width:768px){
-  .sidebar{display:none}
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
   .main{margin-left:0}
-  .bottom-nav{display:flex}
+  .bnav{display:flex}
   .content{padding:14px;padding-bottom:80px}
-  .grid-kpi{grid-template-columns:repeat(2,1fr)}
-  .info-grid{grid-template-columns:1fr 1fr}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .ig{grid-template-columns:1fr 1fr}
+  .donut-wrap{flex-direction:column}
+  .chart-grid{grid-template-columns:1fr!important}
 }
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="logo">
-      <div class="logo-icon">🚗</div>
-      <div>
-        <div class="logo-text">DLMS</div>
-        <div class="logo-sub">Driver License Mgmt</div>
-      </div>
-    </div>
-    <nav class="sidebar-nav" id="sidebar-nav"></nav>
-    <div class="user-bar">
-      <div class="user-avatar">S</div>
-      <div>
-        <div style="font-size:12px;font-weight:600;color:#333">SHE&En Officer</div>
-        <div style="font-size:10px;color:#999">admin</div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- Main -->
-  <div class="main">
-    <header class="topbar">
-      <div style="font-size:16px;font-weight:700" id="page-title">หน้าหลัก</div>
-      <div style="font-size:12px;color:#888" id="today-date"></div>
-    </header>
-    <div class="content" id="main-content">
-      <div class="spinner-wrap"><div class="spinner"></div><span style="font-size:13px;color:#888">กำลังโหลด...</span></div>
-    </div>
+<aside class="sidebar" id="sidebar">
+  <div class="logo">
+    <div class="logo-icon">🚗</div>
+    <div><div class="logo-text">DLMS</div><div class="logo-sub">Driver License Mgmt</div></div>
   </div>
+  <nav class="snav" id="snav"></nav>
+  <div class="ubar">
+    <div class="uavatar">S</div>
+    <div><div style="font-size:12px;font-weight:600;color:#fff">SHE&En Officer</div><div style="font-size:10px;color:rgba(255,255,255,.4)">admin</div></div>
+  </div>
+</aside>
 
-  <!-- Bottom Nav -->
-  <nav class="bottom-nav" id="bottom-nav"></nav>
+<div class="main">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button onclick="toggleSidebar()" style="border:none;background:none;font-size:22px;cursor:pointer;color:#6B7280;padding:0;line-height:1;display:none" id="ham-btn">☰</button>
+      <div id="page-title" style="font-size:17px;font-weight:700;color:#111827"></div>
+    </div>
+    <div style="font-size:12px;color:#9CA3AF" id="today-label"></div>
+  </header>
+  <div class="content" id="content">
+    <div class="sw-center"><div class="spin"></div><span style="font-size:13px;color:#9CA3AF">กำลังโหลด...</span></div>
+  </div>
 </div>
 
+<nav class="bnav" id="bnav"></nav>
+
+</div>
 <script>
-// ─── CONFIG ──────────────────────────────────────────────────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbz7gqRkzLd6YhERW8VmOCuLEC-goCQaqgy6UB2oGfZFW_OWkIj3pAX9FTTgI2LpXwU/exec';
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+const GAS = 'https://script.google.com/macros/s/AKfycbz7gqRkzLd6YhERW8VmOCuLEC-goCQaqgy6UB2oGfZFW_OWkIj3pAX9FTTgI2LpXwU/exec';
 
-const NAV = [
-  { id:'dashboard',      icon:'🏠', label:'หน้าหลัก' },
-  { id:'employees',      icon:'👥', label:'พนักงาน' },
-  { id:'reports',        icon:'📊', label:'รายงาน' },
-  { id:'notifications',  icon:'🔔', label:'แจ้งเตือน' },
-  { id:'settings',       icon:'⚙️', label:'ตั้งค่า' },
+const NAV=[
+  {id:'dashboard',icon:'🏠',label:'หน้าหลัก'},
+  {id:'employees',icon:'👥',label:'พนักงาน'},
+  {id:'reports',  icon:'📊',label:'รายงาน'},
+  {id:'notifs',   icon:'🔔',label:'แจ้งเตือน'},
+  {id:'settings', icon:'⚙️',label:'ตั้งค่า'},
 ];
-
-const STATUS = {
-  normal:  { label:'ปกติ',     cls:'s-normal',  dot:'#639922' },
-  '45d':   { label:'45 วัน',  cls:'s-45d',     dot:'#EF9F27' },
-  '30d':   { label:'30 วัน',  cls:'s-30d',     dot:'#D05538' },
-  '15d':   { label:'15 วัน',  cls:'s-15d',     dot:'#E24B4A' },
-  expired: { label:'หมดอายุ', cls:'s-expired', dot:'#A32D2D' },
+const TITLES={dashboard:'หน้าหลัก',employees:'รายชื่อพนักงาน',reports:'รายงาน',notifs:'การแจ้งเตือน',settings:'ตั้งค่า'};
+const CENTERS=['ศูนย์วิจัยไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า','ศูนย์วิจัยหาดเจ้า','ศูนย์วิจัยหัวกุญแจ','ศูนย์วิจัยเพชรบุรี'];
+const CS={'ศูนย์วิจัยไร่สาม':'ไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า':'ปรับปรุงฯ','ศูนย์วิจัยหาดเจ้า':'หาดเจ้า','ศูนย์วิจัยหัวกุญแจ':'หัวกุญแจ','ศูนย์วิจัยเพชรบุรี':'เพชรบุรี'};
+const SC={
+  normal:{cls:'sn', bg:'#DCFCE7',border:'#86EFAC',dot:'#16A34A',label:'ปกติ'},
+  '45d': {cls:'s45',bg:'#FEF3C7',border:'#FCD34D',dot:'#D97706',label:'45 วัน'},
+  '30d': {cls:'s30',bg:'#FEE2E2',border:'#FCA5A5',dot:'#DC2626',label:'30 วัน'},
+  '15d': {cls:'s15',bg:'#FECACA',border:'#F87171',dot:'#EF4444',label:'15 วัน'},
+  expired:{cls:'sx',bg:'#991B1B',border:'#7F1D1D',dot:'#fff',   label:'หมดอายุ'},
 };
 
-const CENTERS = ['ศูนย์วิจัยไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า','ศูนย์วิจัยหาดเจ้า','ศูนย์วิจัยหัวกุญแจ','ศูนย์วิจัยเพชรบุรี'];
-const CENTER_SHORT = {'ศูนย์วิจัยไร่สาม':'ไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า':'ปรับปรุงพันธุ์ฯ','ศูนย์วิจัยหาดเจ้า':'หาดเจ้า','ศูนย์วิจัยหัวกุญแจ':'หัวกุญแจ','ศูนย์วิจัยเพชรบุรี':'เพชรบุรี'};
-
 // ─── STATE ───────────────────────────────────────────────────────────────────
-let currentPage = 'dashboard';
-let employees = [], empDetail = null;
+let page='dashboard', empList=[], empCache={}, reportData=null, activeStatus='', sidebarOpen=false;
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
-function daysRemaining(d) {
-  if (!d) return null;
-  const now = new Date(); now.setHours(0,0,0,0);
-  const exp = new Date(d); exp.setHours(0,0,0,0);
-  return Math.floor((exp - now) / 86400000);
-}
-function getStatus(days) {
-  if (days===null) return 'normal';
-  if (days<0) return 'expired';
-  if (days<=15) return '15d';
-  if (days<=30) return '30d';
-  if (days<=45) return '45d';
-  return 'normal';
-}
-function fmtDate(iso) {
-  if (!iso) return '-';
-  try {
-    return new Date(iso).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
-  } catch { return iso; }
-}
-function badge(status, days, sm) {
-  const s = STATUS[status] || STATUS.normal;
-  const label = days!==undefined && days!==null
-    ? (days<0 ? `เกิน ${Math.abs(days)} วัน` : days===0 ? 'วันนี้!' : `${days} วัน`)
-    : s.label;
-  return `<span class="badge ${s.cls}${sm?' badge-sm':''}"><span class="badge-dot"></span>${label}</span>`;
-}
-function spinner(text='กำลังโหลด...') {
-  return `<div class="spinner-wrap"><div class="spinner"></div><span style="font-size:13px;color:#888">${text}</span></div>`;
+const days=d=>{if(!d)return null;const n=new Date();n.setHours(0,0,0,0);const e=new Date(d);e.setHours(0,0,0,0);return Math.floor((e-n)/86400000)};
+const status=d=>{if(d===null)return 'normal';if(d<0)return 'expired';if(d<=15)return '15d';if(d<=30)return '30d';if(d<=45)return '45d';return 'normal'};
+const fdate=d=>{if(!d||d==='-')return '-';try{return new Date(d).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'})}catch{return d}};
+const badge=(s,d,sm)=>{const c=SC[s]||SC.normal;const lbl=d!=null?(d<0?`เกิน ${Math.abs(d)} วัน`:d===0?'วันนี้!':`${d} วัน`):c.label;return`<span class="badge ${c.cls}${sm?' badge-sm':''}"><span class="bdot"></span>${lbl}</span>`};
+const spin=(t='กำลังโหลด...')=>`<div class="sw-center"><div class="spin"></div><span style="font-size:13px;color:#9CA3AF">${t}</span></div>`;
+const empty=(t='ไม่มีข้อมูล')=>`<div style="text-align:center;padding:40px;color:#9CA3AF"><div style="font-size:36px;margin-bottom:8px">📭</div><div style="font-size:13px">${t}</div></div>`;
+const err=e=>`<div style="padding:16px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;color:#DC2626;font-size:13px">❌ ${e}</div>`;
+
+// ─── API ────────────────────────────────────────────────────────────────────
+async function api(action,params={}){
+  const u=new URL(GAS);
+  u.searchParams.set('action',action);
+  u.searchParams.set('params',JSON.stringify(params));
+  const r=await fetch(u.toString(),{redirect:'follow'});
+  const j=await r.json();
+  if(!j.ok)throw new Error(j.message||'API Error');
+  return j.data;
 }
 
-// ─── API ──────────────────────────────────────────────────────────────────────
-async function api(action, params={}) {
-  const url = new URL(GAS_URL);
-  url.searchParams.set('action', action);
-  url.searchParams.set('params', JSON.stringify(params));
-  const res = await fetch(url.toString(), {redirect:'follow'});
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.message || 'API error');
-  return json.data;
+// ─── NAV ────────────────────────────────────────────────────────────────────
+function renderNav(){
+  document.getElementById('snav').innerHTML=NAV.map(n=>`<button class="ni${page===n.id?' active':''}" onclick="go('${n.id}')"><span class="ni-icon">${n.icon}</span>${n.label}</button>`).join('');
+  document.getElementById('bnav').innerHTML=NAV.map(n=>`<button class="bni${page===n.id?' active':''}" onclick="go('${n.id}')"><span class="bni-icon">${n.icon}</span>${n.label}</button>`).join('');
+  document.getElementById('page-title').textContent=TITLES[page]||'DLMS';
+  document.getElementById('today-label').textContent=new Date().toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
+  const hb=document.getElementById('ham-btn');
+  if(hb)hb.style.display='block';
+}
+function go(p){page=p;empCache._detail=null;activeStatus='';renderNav();renderPage()}
+function toggleSidebar(){sidebarOpen=!sidebarOpen;document.getElementById('sidebar').classList.toggle('open',sidebarOpen)}
+
+// ─── PAGES ──────────────────────────────────────────────────────────────────
+function renderPage(){
+  const el=document.getElementById('content');
+  if(page==='dashboard')pgDashboard(el);
+  else if(page==='employees'&&!empCache._detail)pgEmployees(el);
+  else if(page==='employees'&&empCache._detail)pgDetail(el,empCache._detail);
+  else if(page==='reports')pgReports(el);
+  else if(page==='notifs')pgNotifs(el);
+  else if(page==='settings')pgSettings(el);
 }
 
-// ─── RENDER NAV ───────────────────────────────────────────────────────────────
-function renderNav() {
-  const sidebarNav = document.getElementById('sidebar-nav');
-  const bottomNav  = document.getElementById('bottom-nav');
-  sidebarNav.innerHTML = NAV.map(n => `
-    <button class="nav-item ${currentPage===n.id?'active':''}" onclick="navigate('${n.id}')">
-      <span class="nav-icon">${n.icon}</span>${n.label}
-    </button>`).join('');
-  bottomNav.innerHTML = NAV.map(n => `
-    <button class="bnav-item ${currentPage===n.id?'active':''}" onclick="navigate('${n.id}')">
-      <span class="bnav-icon">${n.icon}</span>${n.label}
-    </button>`).join('');
-  const titles = {dashboard:'หน้าหลัก',employees:'รายชื่อพนักงาน',reports:'รายงาน',notifications:'การแจ้งเตือน',settings:'ตั้งค่า'};
-  document.getElementById('page-title').textContent = titles[currentPage] || 'DLMS';
-  document.getElementById('today-date').textContent =
-    new Date().toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
-}
-
-function navigate(page, data=null) {
-  currentPage = page;
-  empDetail = data;
-  renderNav();
-  renderPage();
-}
-
-// ─── PAGES ────────────────────────────────────────────────────────────────────
-function renderPage() {
-  const el = document.getElementById('main-content');
-  if (currentPage==='dashboard')     renderDashboard(el);
-  else if (currentPage==='employees' && !empDetail) renderEmployees(el);
-  else if (currentPage==='employees' && empDetail)  renderEmployeeDetail(el, empDetail);
-  else if (currentPage==='reports')  renderReports(el);
-  else if (currentPage==='notifications') renderNotifications(el);
-  else if (currentPage==='settings') renderSettings(el);
-}
-
-// ── Dashboard ──
-async function renderDashboard(el) {
-  el.innerHTML = spinner('กำลังโหลด Dashboard...');
-  try {
-    const [sum, centers] = await Promise.all([api('dashboard.summary'), api('dashboard.centerStats')]);
-    el.innerHTML = dashboardHTML(sum, centers);
-  } catch(e) {
-    el.innerHTML = `<p style="color:red;padding:20px">❌ ${e.message}</p>`;
-  }
-}
-
-function dashboardHTML(s, centers) {
-  const total = Object.values(s.license_status).reduce((a,b)=>a+b,0)||1;
-  const pct = (v) => Math.round(v/total*100);
-
-  const alertsHTML = (s.recent_alerts||[]).slice(0,6).map(a => {
-    const st = STATUS[a.status]||STATUS.normal;
-    return `<div class="alert-row s-${a.status}" style="background:${getStatusBg(a.status)};border-color:${getStatusBorder(a.status)}">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:18px">${a.type==='license'?'🪪':'🎓'}</span>
-        <div>
-          <div style="font-size:13px;font-weight:600">${a.employee_name}</div>
-          <div style="font-size:11px;color:#666">${a.research_center} · ${a.license_type||a.course_name||''}</div>
+// ── DASHBOARD ──
+async function pgDashboard(el){
+  el.innerHTML=spin('กำลังโหลด Dashboard...');
+  try{
+    const[s,centers]=await Promise.all([api('dashboard.summary'),api('dashboard.centerStats')]);
+    el.innerHTML=`
+    <div class="kpi-grid">
+      ${kpi('พนักงานทั้งหมด',s.total_employees,'5 ศูนย์วิจัย','#1D4ED8','#DBEAFE','👥')}
+      ${kpi('ใกล้หมดอายุ',s.near_expiry,'ภายใน 45 วัน','#D97706','#FEF3C7','⚠️')}
+      ${kpi('หมดอายุแล้ว',s.expired,'ต้องดำเนินการด่วน','#DC2626','#FEE2E2','🚨')}
+      ${kpi('Compliance',s.compliance_rate+'%','ใบขับขี่ปกติ','#16A34A','#DCFCE7','✅')}
+    </div>
+    <div class="chart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="card card-p">
+        <div class="stitle">📊 สถานะตามศูนย์วิจัย</div>
+        <div class="cbar-wrap">${centerBars(centers)}</div>
+        <div style="display:flex;gap:14px;margin-top:12px;flex-wrap:wrap">
+          ${['#16A34A:ปกติ','#D97706:ใกล้หมด','#DC2626:หมดแล้ว'].map(x=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6B7280"><div style="width:8px;height:8px;border-radius:2px;background:${x.split(':')[0]}"></div>${x.split(':')[1]}</div>`).join('')}
         </div>
       </div>
-      ${badge(a.status, a.days_remaining, true)}
+      <div class="card card-p">
+        <div class="stitle">🪪 สัดส่วนสถานะใบขับขี่</div>
+        ${donut(s.license_status)}
+      </div>
+    </div>
+    <div class="card card-p">
+      <div class="stitle">🔔 รายการแจ้งเตือนล่าสุด</div>
+      ${(s.recent_alerts||[]).length===0?empty('ไม่มีรายการแจ้งเตือน 🎉'):(s.recent_alerts||[]).slice(0,8).map(a=>`
+        <div class="alert-row" style="background:${SC[a.status]?.bg||'#fff'};border-color:${SC[a.status]?.border||'#E8ECF0'}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">${a.type==='license'?'🪪':'🎓'}</span>
+            <div>
+              <div style="font-size:13px;font-weight:600">${a.employee_name}</div>
+              <div style="font-size:11px;color:#6B7280">${a.research_center} · ${a.license_type||a.course_name||''}</div>
+            </div>
+          </div>
+          ${badge(a.status,a.days_remaining,true)}
+        </div>`).join('')}
     </div>`;
-  }).join('') || '<p style="text-align:center;color:#aaa;padding:20px;font-size:13px">ไม่มีรายการแจ้งเตือน 🎉</p>';
-
-  const centerBars = centers.map(c => {
-    const tot = c.total || 1;
-    return `<div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span style="color:#555;font-weight:500">${CENTER_SHORT[c.center]||c.center}</span>
-        <span style="color:#888">${c.total} คน</span>
-      </div>
-      <div style="display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden">
-        <div style="width:${pct(c.normal)}%;background:#639922"></div>
-        <div style="width:${pct(c.near_expiry)}%;background:#EF9F27"></div>
-        <div style="width:${pct(c.expired)}%;background:#E24B4A"></div>
-      </div>
-    </div>`;
-  }).join('');
-
-  return `
-  <div class="grid-kpi">
-    <div class="kpi-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="kpi-label">พนักงานทั้งหมด</div>
-          <div class="kpi-num" style="color:#185FA5">${s.total_employees}</div>
-          <div class="kpi-sub">5 ศูนย์วิจัย</div>
-        </div>
-        <div class="kpi-icon" style="background:#185FA520;color:#185FA5">👥</div>
-      </div>
-    </div>
-    <div class="kpi-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="kpi-label">ใกล้หมดอายุ</div>
-          <div class="kpi-num" style="color:#BA7517">${s.near_expiry}</div>
-          <div class="kpi-sub">ภายใน 45 วัน</div>
-        </div>
-        <div class="kpi-icon" style="background:#BA751720;color:#BA7517">⚠️</div>
-      </div>
-    </div>
-    <div class="kpi-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="kpi-label">หมดอายุแล้ว</div>
-          <div class="kpi-num" style="color:#E24B4A">${s.expired}</div>
-          <div class="kpi-sub">ด่วน!</div>
-        </div>
-        <div class="kpi-icon" style="background:#E24B4A20;color:#E24B4A">🚨</div>
-      </div>
-    </div>
-    <div class="kpi-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="kpi-label">Compliance</div>
-          <div class="kpi-num" style="color:#3B6D11">${s.compliance_rate}%</div>
-          <div class="kpi-sub">ปกติ</div>
-        </div>
-        <div class="kpi-icon" style="background:#3B6D1120;color:#3B6D11">✅</div>
-      </div>
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-    <div class="card" style="padding:18px">
-      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:14px">📊 สถานะตามศูนย์วิจัย</div>
-      ${centerBars}
-      <div class="legend" style="margin-top:12px">
-        <div class="legend-item"><div class="legend-dot" style="background:#639922"></div>ปกติ</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#EF9F27"></div>ใกล้หมด</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#E24B4A"></div>หมดแล้ว</div>
-      </div>
-    </div>
-    <div class="card" style="padding:18px">
-      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:14px">🪪 สัดส่วนสถานะ</div>
-      ${pieChartHTML(s.license_status)}
-    </div>
-  </div>
-
-  <div class="card" style="padding:18px">
-    <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:12px">🔔 รายการแจ้งเตือนล่าสุด</div>
-    ${alertsHTML}
-  </div>`;
+  }catch(e){el.innerHTML=err(e.message)}
 }
-
-function pieChartHTML(ls) {
-  const items = [
-    {label:'ปกติ',    val:ls.normal||0,  color:'#639922'},
-    {label:'45 วัน', val:ls['45d']||0,  color:'#EF9F27'},
-    {label:'30 วัน', val:ls['30d']||0,  color:'#D05538'},
-    {label:'15 วัน', val:ls['15d']||0,  color:'#E24B4A'},
-    {label:'หมดอายุ',val:ls.expired||0, color:'#A32D2D'},
+function kpi(label,val,sub,color,bg,icon){return`<div class="kpi"><div class="kpi-top"><div><div class="kpi-label">${label}</div><div class="kpi-val" style="color:${color}">${val}</div><div class="kpi-sub">${sub}</div></div><div class="kpi-ico" style="background:${bg}">${icon}</div></div></div>`}
+function centerBars(centers){
+  return centers.map(c=>{
+    const tot=c.total||1;
+    const pw=n=>Math.round(n/tot*100)+'%';
+    return`<div class="cbar-row">
+      <div class="cbar-label">${CS[c.center]||c.center}</div>
+      <div class="cbar-track">
+        <div class="cbar-seg" style="width:${pw(c.normal)};background:#16A34A"></div>
+        <div class="cbar-seg" style="width:${pw(c.near_expiry)};background:#D97706"></div>
+        <div class="cbar-seg" style="width:${pw(c.expired)};background:#DC2626"></div>
+      </div>
+      <div class="cbar-num">${c.total}</div>
+    </div>`}).join('')
+}
+function donut(ls){
+  const items=[
+    {label:'ปกติ',   val:ls.normal||0, color:'#16A34A'},
+    {label:'45 วัน', val:ls['45d']||0, color:'#D97706'},
+    {label:'30 วัน', val:ls['30d']||0, color:'#DC2626'},
+    {label:'15 วัน', val:ls['15d']||0, color:'#EF4444'},
+    {label:'หมดอายุ',val:ls.expired||0,color:'#7F1D1D'},
   ].filter(i=>i.val>0);
-  const total = items.reduce((a,b)=>a+b.val,0)||1;
-  let angle = -90, paths = '';
-  items.forEach(item => {
-    const pct = item.val/total;
-    const deg = pct*360;
-    const r = 60, cx = 80, cy = 80;
-    const x1 = cx+r*Math.cos(angle*Math.PI/180);
-    const y1 = cy+r*Math.sin(angle*Math.PI/180);
-    angle += deg;
-    const x2 = cx+r*Math.cos(angle*Math.PI/180);
-    const y2 = cy+r*Math.sin(angle*Math.PI/180);
-    const large = deg>180?1:0;
-    paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${item.color}" opacity=".9"/>`;
+  const total=items.reduce((a,b)=>a+b.val,0)||1;
+  let ang=-90,paths='';
+  items.forEach(item=>{
+    const deg=item.val/total*360;
+    const r=55,cx=70,cy=70;
+    const x1=cx+r*Math.cos(ang*Math.PI/180),y1=cy+r*Math.sin(ang*Math.PI/180);
+    ang+=deg;
+    const x2=cx+r*Math.cos(ang*Math.PI/180),y2=cy+r*Math.sin(ang*Math.PI/180);
+    const lg=deg>180?1:0;
+    paths+=`<path d="M${cx},${cy} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${lg},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z" fill="${item.color}"/>`;
   });
-  const legend = items.map(i=>`<div class="legend-item"><div class="legend-dot" style="background:${i.color}"></div>${i.label}: ${i.val}</div>`).join('');
-  return `<svg viewBox="0 0 160 160" style="width:100%;max-width:160px;display:block;margin:0 auto">
-    <circle cx="80" cy="80" r="35" fill="#F5F4F0"/>
-    ${paths}
-    <circle cx="80" cy="80" r="35" fill="white"/>
-    <text x="80" y="76" text-anchor="middle" font-size="14" font-weight="700" fill="#333" font-family="Sarabun">${total}</text>
-    <text x="80" y="90" text-anchor="middle" font-size="10" fill="#888" font-family="Sarabun">ใบขับขี่</text>
-  </svg>
-  <div class="legend">${legend}</div>`;
+  return`<div class="donut-wrap">
+    <svg viewBox="0 0 140 140" style="width:130px;flex-shrink:0">
+      ${paths}
+      <circle cx="70" cy="70" r="32" fill="white"/>
+      <text x="70" y="66" text-anchor="middle" font-size="16" font-weight="700" fill="#111" font-family="Sarabun">${total}</text>
+      <text x="70" y="80" text-anchor="middle" font-size="10" fill="#9CA3AF" font-family="Sarabun">ใบขับขี่</text>
+    </svg>
+    <div class="donut-legend">${items.map(i=>`<div class="dl-item"><div class="dl-dot" style="background:${i.color}"></div><span>${i.label}: <strong>${i.val}</strong></span></div>`).join('')}</div>
+  </div>`
 }
 
-function getStatusBg(s) { return {normal:'#EAF3DE','45d':'#FAEEDA','30d':'#FEF0E6','15d':'#FCEBEB',expired:'#F7C1C1'}[s]||'#fff'; }
-function getStatusBorder(s) { return {normal:'#639922','45d':'#BA7517','30d':'#D05538','15d':'#E24B4A',expired:'#A32D2D'}[s]||'#E8E6E0'; }
-
-// ── Employees ──
-async function renderEmployees(el) {
-  el.innerHTML = spinner('กำลังโหลดรายชื่อ...');
-  try {
-    employees = await api('employees.list', {pageSize:100});
-    el.innerHTML = employeesHTML(employees);
-  } catch(e) {
-    el.innerHTML = `<p style="color:red;padding:20px">❌ ${e.message}</p>`;
-  }
+// ── EMPLOYEES ──
+async function pgEmployees(el){
+  el.innerHTML=spin('กำลังโหลดรายชื่อ...');
+  try{
+    empList=await api('employees.list',{pageSize:100});
+    renderEmpList(el);
+  }catch(e){el.innerHTML=err(e.message)}
 }
-
-function employeesHTML(emps) {
-  const statuses = ['','normal','45d','30d','15d','expired'];
-  const labels   = ['ทั้งหมด','ปกติ','45 วัน','30 วัน','15 วัน','หมดอายุ'];
-  const pills = statuses.map((s,i)=>`
-    <button class="filter-pill" id="pill-${s||'all'}" onclick="filterEmps('${s}')">${labels[i]}</button>`).join('');
-
-  const rows = emps.map(e => {
-    const corp = e.licenses?.corporate;
-    const govt = e.licenses?.government;
-    return `<div class="emp-row" onclick="openEmployee('${e.employee_id}')">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="emp-avatar">${e.full_name.charAt(2)||'?'}</div>
-        <div>
-          <div style="font-size:14px;font-weight:600">${e.full_name}</div>
-          <div style="font-size:11px;color:#888;margin-top:1px">${e.employee_id} · ${CENTER_SHORT[e.research_center]||e.research_center}</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        ${corp?`<div style="text-align:center"><div style="font-size:10px;color:#aaa;margin-bottom:2px">เครือฯ</div>${badge(corp.expiry_status,corp.days_remaining,true)}</div>`:''}
-        ${govt?`<div style="text-align:center"><div style="font-size:10px;color:#aaa;margin-bottom:2px">ราชการ</div>${badge(govt.expiry_status,govt.days_remaining,true)}</div>`:''}
-        <span style="font-size:16px;color:#ccc">›</span>
-      </div>
-    </div>`;
-  }).join('');
-
-  return `
-  <div class="card" style="padding:14px;margin-bottom:14px">
-    <div class="search-wrap" style="margin-bottom:10px">
-      <span class="icon">🔍</span>
-      <input class="search-input" id="emp-search" placeholder="ค้นหาชื่อ, รหัส..." oninput="filterEmps()">
+function renderEmpList(el){
+  const statFilters=[['','ทั้งหมด'],['normal','ปกติ'],['45d','45 วัน'],['30d','30 วัน'],['15d','15 วัน'],['expired','หมดอายุ']];
+  const counts={};
+  empList.forEach(e=>{const s=e.overall_status||'normal';counts[s]=(counts[s]||0)+1});
+  counts['']=(empList.length);
+  el.innerHTML=`
+  <div class="card card-p" style="margin-bottom:12px">
+    <div class="sw" style="margin-bottom:10px">
+      <span class="sico">🔍</span>
+      <input class="sinput" id="esearch" placeholder="ค้นหาชื่อ, รหัสพนักงาน..." oninput="filterEmp()">
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <select class="filter-select" id="center-filter" onchange="filterEmps()" style="flex:1;min-width:140px">
+      <select class="fsel" id="ecenter" onchange="filterEmp()" style="flex:1;min-width:140px">
         <option value="">ทุกศูนย์วิจัย</option>
         ${CENTERS.map(c=>`<option>${c}</option>`).join('')}
       </select>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">${pills}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${statFilters.map(([v,l])=>`<button class="fpill${activeStatus===v?' active':''}" id="ep-${v||'all'}" onclick="setEmpStatus('${v}')">${l}${counts[v]!==undefined?` <span style="opacity:.7">${counts[v]}</span>`:''}</button>`).join('')}
+      </div>
     </div>
   </div>
-  <div style="font-size:12px;color:#888;margin-bottom:10px;padding-left:2px" id="emp-count">พบ ${emps.length} คน</div>
-  <div id="emp-list">${rows}</div>`;
+  <div style="font-size:12px;color:#9CA3AF;margin-bottom:10px;padding-left:2px" id="ecount">พบ ${empList.length} คน</div>
+  <div id="elist">${empRows(empList)}</div>`;
 }
-
-let activeStatus = '';
-function filterEmps(status) {
-  if (status !== undefined) {
-    activeStatus = status;
-    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-    document.getElementById(`pill-${status||'all'}`)?.classList.add('active');
-  }
-  const q = (document.getElementById('emp-search')?.value||'').toLowerCase();
-  const center = document.getElementById('center-filter')?.value||'';
-  const filtered = employees.filter(e => {
-    const matchQ = !q || e.full_name.toLowerCase().includes(q) || e.employee_id.toLowerCase().includes(q);
-    const matchC = !center || e.research_center === center;
-    const matchS = !activeStatus || e.overall_status === activeStatus;
-    return matchQ && matchC && matchS;
-  });
-  const listEl = document.getElementById('emp-list');
-  const countEl = document.getElementById('emp-count');
-  if (listEl) listEl.innerHTML = filtered.map(e => {
-    const corp = e.licenses?.corporate;
-    const govt = e.licenses?.government;
-    return `<div class="emp-row" onclick="openEmployee('${e.employee_id}')">
+function empRows(list){
+  return list.map(e=>{
+    const corp=e.licenses?.corporate,govt=e.licenses?.government;
+    return`<div class="emp-row" onclick="openEmp('${e.employee_id}')">
       <div style="display:flex;align-items:center;gap:12px">
-        <div class="emp-avatar">${e.full_name.charAt(2)||'?'}</div>
+        <div class="eavatar">${e.full_name.charAt(2)||'?'}</div>
         <div>
           <div style="font-size:14px;font-weight:600">${e.full_name}</div>
-          <div style="font-size:11px;color:#888">${e.employee_id} · ${CENTER_SHORT[e.research_center]||e.research_center}</div>
+          <div style="font-size:11.5px;color:#9CA3AF;margin-top:1px">${e.employee_id} · ${CS[e.research_center]||e.research_center}</div>
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        ${corp?`<div style="text-align:center"><div style="font-size:10px;color:#aaa;margin-bottom:2px">เครือฯ</div>${badge(corp.expiry_status,corp.days_remaining,true)}</div>`:''}
-        ${govt?`<div style="text-align:center"><div style="font-size:10px;color:#aaa;margin-bottom:2px">ราชการ</div>${badge(govt.expiry_status,govt.days_remaining,true)}</div>`:''}
-        <span style="color:#ccc">›</span>
+        ${corp?`<div><div style="font-size:10px;color:#9CA3AF;text-align:center;margin-bottom:2px">เครือฯ</div>${badge(corp.expiry_status,corp.days_remaining,true)}</div>`:''}
+        ${govt?`<div><div style="font-size:10px;color:#9CA3AF;text-align:center;margin-bottom:2px">ราชการ</div>${badge(govt.expiry_status,govt.days_remaining,true)}</div>`:''}
+        <span style="color:#C7D2DA;font-size:18px">›</span>
       </div>
     </div>`;
-  }).join('') || '<p style="text-align:center;color:#aaa;padding:30px;font-size:13px">ไม่พบรายชื่อ</p>';
-  if (countEl) countEl.textContent = `พบ ${filtered.length} จาก ${employees.length} คน`;
+  }).join('')||empty('ไม่พบรายชื่อที่ค้นหา')
 }
-
-async function openEmployee(id) {
-  const el = document.getElementById('main-content');
-  el.innerHTML = spinner();
-  try {
-    const [emp, licenses, trainings] = await Promise.all([
-      api('employees.get', {employee_id:id}),
-      api('licenses.getByEmployee', {employee_id:id}),
-      api('trainings.getByEmployee', {employee_id:id}),
+function setEmpStatus(v){activeStatus=v;document.querySelectorAll('[id^="ep-"]').forEach(b=>b.classList.remove('active'));document.getElementById(`ep-${v||'all'}`)?.classList.add('active');filterEmp()}
+function filterEmp(){
+  const q=(document.getElementById('esearch')?.value||'').toLowerCase();
+  const center=document.getElementById('ecenter')?.value||'';
+  const f=empList.filter(e=>{
+    const mq=!q||e.full_name.toLowerCase().includes(q)||e.employee_id.toLowerCase().includes(q);
+    const mc=!center||e.research_center===center;
+    const ms=!activeStatus||e.overall_status===activeStatus;
+    return mq&&mc&&ms;
+  });
+  document.getElementById('elist').innerHTML=empRows(f);
+  document.getElementById('ecount').textContent=`พบ ${f.length} จาก ${empList.length} คน`;
+}
+async function openEmp(id){
+  document.getElementById('content').innerHTML=spin();
+  try{
+    const[emp,lics,trns]=await Promise.all([
+      api('employees.get',{employee_id:id}),
+      api('licenses.getByEmployee',{employee_id:id}),
+      api('trainings.getByEmployee',{employee_id:id}),
     ]);
-    empDetail = {emp, licenses, trainings};
-    currentPage = 'employees';
+    empCache._detail={emp,lics,trns};
     renderNav();
-    el.innerHTML = empDetailHTML(emp, licenses, trainings);
-  } catch(e) {
-    el.innerHTML = `<p style="color:red;padding:20px">❌ ${e.message}</p>`;
-  }
+    pgDetail(document.getElementById('content'),empCache._detail);
+  }catch(e){document.getElementById('content').innerHTML=err(e.message)}
 }
-
-function renderEmployeeDetail(el, d) {
-  el.innerHTML = empDetailHTML(d.emp, d.licenses, d.trainings);
-}
-
-function empDetailHTML(emp, lics, trns) {
-  let licTab = lics.length===0
-    ? '<p style="text-align:center;color:#aaa;padding:30px;font-size:13px">ยังไม่มีข้อมูลใบขับขี่</p>'
-    : lics.map(l => {
-        const days = l.days_remaining ?? daysRemaining(l.expiry_date);
-        return `<div class="card" style="padding:16px;border-left:4px solid ${getStatusBorder(l.expiry_status)};margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-            <div>
-              <div style="font-size:14px;font-weight:600">${l.license_type==='ใบขับขี่เครือฯ'?'🏢':'🏛️'} ${l.license_type}</div>
-              <div style="font-size:11px;color:#888;margin-top:2px">เลขที่: ${l.license_number||'-'}</div>
-            </div>
-            ${badge(l.expiry_status, days)}
-          </div>
-          <div class="info-grid">
-            <div><div class="info-label">วันออกบัตร</div><div class="info-val">${fmtDate(l.issue_date)}</div></div>
-            <div><div class="info-label">วันหมดอายุ</div><div class="info-val ${l.expiry_status!=='normal'?'hl':''}">${fmtDate(l.expiry_date)}</div></div>
-            <div><div class="info-label">การอบรม</div><div class="info-val">${l.training_status||'-'}</div></div>
-            <div><div class="info-label">อัพเดตล่าสุด</div><div class="info-val">${fmtDate(l.updated_at)}</div></div>
-          </div>
-          ${l.file_url?`<a href="${l.file_url}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;margin-top:12px;font-size:12px;color:#1565C0;padding:5px 10px;background:#E6F1FB;border-radius:6px">📎 ดูไฟล์แนบ</a>`:''}
-        </div>`;
-      }).join('');
-
-  let trnTab = trns.length===0
-    ? '<p style="text-align:center;color:#aaa;padding:30px;font-size:13px">ยังไม่มีประวัติการอบรม</p>'
-    : trns.map(t => `<div class="card" style="padding:16px;margin-bottom:10px">
-        <div style="font-size:14px;font-weight:600;margin-bottom:10px">🎓 ${t.course_name}</div>
-        <div class="info-grid">
-          <div><div class="info-label">วันอบรม</div><div class="info-val">${fmtDate(t.training_date)}</div></div>
-          <div><div class="info-label">ผู้สอน</div><div class="info-val">${t.trainer||'-'}</div></div>
-          <div><div class="info-label">ครบกำหนดถัดไป</div><div class="info-val ${t.due_status!=='normal'?'hl':''}">${fmtDate(t.next_due_date)}</div></div>
-          <div><div class="info-label">สถานะ</div><div class="info-val">${badge(t.due_status, t.days_remaining, true)}</div></div>
+function pgDetail(el,{emp,lics,trns}){
+  const licHTML=lics.length===0?empty('ยังไม่มีข้อมูลใบขับขี่'):lics.map(l=>{
+    const d=l.days_remaining??days(l.expiry_date);
+    return`<div class="card" style="padding:16px;border-left:4px solid ${SC[l.expiry_status]?.dot||'#E8ECF0'};margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:14px;font-weight:600">${l.license_type==='ใบขับขี่เครือฯ'?'🏢':'🏛️'} ${l.license_type}</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-top:2px">เลขที่: ${l.license_number||'-'}</div>
         </div>
-      </div>`).join('');
+        ${badge(l.expiry_status,d)}
+      </div>
+      <div class="ig">
+        <div><div class="ilabel">วันออกบัตร</div><div class="ival">${fdate(l.issue_date)}</div></div>
+        <div><div class="ilabel">วันหมดอายุ</div><div class="ival ${l.expiry_status!=='normal'?'hl':''}">${fdate(l.expiry_date)}</div></div>
+        <div><div class="ilabel">การอบรม</div><div class="ival">${l.training_status||'-'}</div></div>
+        <div><div class="ilabel">อัพเดตล่าสุด</div><div class="ival">${fdate(l.updated_at)}</div></div>
+      </div>
+      ${l.file_url?`<a href="${l.file_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;text-decoration:none;font-weight:500">📎 ดูไฟล์แนบ</a>`:''}
+    </div>`}).join('');
 
-  return `
-  <div style="max-width:620px;margin:0 auto">
-    <button onclick="backToList()" style="background:none;border:none;color:#1565C0;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:0;margin-bottom:14px;font-family:Sarabun,sans-serif">← กลับ</button>
-    <div class="card" style="padding:20px;margin-bottom:14px">
-      <div style="display:flex;align-items:center;gap:16px">
-        <div class="emp-avatar" style="width:56px;height:56px;font-size:22px">${emp.full_name.charAt(2)||'?'}</div>
+  const trnHTML=trns.length===0?empty('ยังไม่มีประวัติการอบรม'):trns.map(t=>`
+    <div class="card" style="padding:16px;margin-bottom:10px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px">🎓 ${t.course_name}</div>
+      <div class="ig">
+        <div><div class="ilabel">วันอบรม</div><div class="ival">${fdate(t.training_date)}</div></div>
+        <div><div class="ilabel">ผู้สอน</div><div class="ival">${t.trainer||'-'}</div></div>
+        <div><div class="ilabel">ครบกำหนดถัดไป</div><div class="ival ${t.due_status!=='normal'?'hl':''}">${fdate(t.next_due_date)}</div></div>
+        <div><div class="ilabel">สถานะ</div><div class="ival">${badge(t.due_status,t.days_remaining,true)}</div></div>
+      </div>
+      ${t.certificate_url?`<a href="${t.certificate_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;text-decoration:none;font-weight:500">📜 ดูใบรับรอง</a>`:''}
+    </div>`).join('');
+
+  el.innerHTML=`
+  <div style="max-width:640px;margin:0 auto">
+    <button class="back-btn" onclick="backToList()">← กลับ</button>
+    <div class="card card-p" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div class="eavatar" style="width:56px;height:56px;font-size:22px;border-radius:14px">${emp.full_name.charAt(2)||'?'}</div>
         <div style="flex:1">
           <div style="font-size:17px;font-weight:700">${emp.full_name}</div>
-          <div style="font-size:12px;color:#888;margin-top:2px">รหัส: ${emp.employee_id}</div>
-          <div style="font-size:12px;color:#888">${emp.research_center}</div>
-          ${emp.position?`<div style="font-size:12px;color:#888">ตำแหน่ง: ${emp.position}</div>`:''}
+          <div style="font-size:12px;color:#9CA3AF;margin-top:2px">รหัส: ${emp.employee_id}</div>
+          <div style="font-size:12px;color:#9CA3AF">${emp.research_center}</div>
+          ${emp.position?`<div style="font-size:12px;color:#9CA3AF">${emp.position}</div>`:''}
         </div>
         ${badge(emp.overall_status||'normal')}
       </div>
-      ${emp.phone?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #F0EEE8;font-size:12px;color:#666">📞 ${emp.phone}</div>`:''}
+      ${emp.phone?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #F0F2F5;font-size:13px;color:#6B7280">📞 ${emp.phone}</div>`:''}
     </div>
-
     <div class="tabs">
-      <button class="tab-btn active" id="tab-lic" onclick="switchTab('lic')">🪪 ใบขับขี่</button>
-      <button class="tab-btn" id="tab-trn" onclick="switchTab('trn')">🎓 การอบรม</button>
+      <button class="tab-btn active" id="tl" onclick="swTab('l')">🪪 ใบขับขี่ (${lics.length})</button>
+      <button class="tab-btn" id="tt" onclick="swTab('t')">🎓 การอบรม (${trns.length})</button>
     </div>
-
-    <div id="tab-lic-content">${licTab}</div>
-    <div id="tab-trn-content" style="display:none">${trnTab}</div>
+    <div id="tc-l">${licHTML}</div>
+    <div id="tc-t" style="display:none">${trnHTML}</div>
   </div>`;
 }
-
-function switchTab(t) {
-  document.getElementById('tab-lic').classList.toggle('active', t==='lic');
-  document.getElementById('tab-trn').classList.toggle('active', t==='trn');
-  document.getElementById('tab-lic-content').style.display = t==='lic'?'block':'none';
-  document.getElementById('tab-trn-content').style.display = t==='trn'?'block':'none';
+function swTab(t){
+  document.getElementById('tl').classList.toggle('active',t==='l');
+  document.getElementById('tt').classList.toggle('active',t==='t');
+  document.getElementById('tc-l').style.display=t==='l'?'block':'none';
+  document.getElementById('tc-t').style.display=t==='t'?'block':'none';
 }
+function backToList(){empCache._detail=null;renderNav();renderEmpList(document.getElementById('content'))}
 
-function backToList() {
-  empDetail = null;
-  renderEmployees(document.getElementById('main-content'));
-}
-
-// ── Reports ──
-async function renderReports(el) {
-  el.innerHTML = `
+// ── REPORTS ──
+function pgReports(el){
+  el.innerHTML=`
   <div style="display:flex;flex-direction:column;gap:14px">
-    <div class="card" style="padding:16px">
-      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:12px">เลือกรายงาน</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${[['license','🪪 ใบขับขี่ใกล้หมด','ภายใน 45 วัน'],['training','🎓 การอบรมใกล้กำหนด','ภายใน 45 วัน'],['full','📋 รายงานรวมทั้งหมด','พนักงาน + ใบขับขี่']]
-          .map(([k,l,d])=>`<button onclick="loadReport('${k}')" style="padding:10px 14px;border:1px solid #E8E6E0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;flex:1;min-width:140px;font-family:Sarabun,sans-serif">
-            <div style="font-size:13px;font-weight:600;color:#333">${l}</div>
-            <div style="font-size:11px;color:#aaa;margin-top:2px">${d}</div>
+    <div class="card card-p">
+      <div class="stitle">เลือกรายงาน</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${[['license','🪪','ใบขับขี่ใกล้หมด','ภายใน 45 วัน'],['training','🎓','การอบรมใกล้กำหนด','ภายใน 45 วัน'],['full','📋','รายงานรวมทั้งหมด','พนักงาน + ใบขับขี่']]
+          .map(([k,ic,l,d])=>`<button onclick="loadReport('${k}')" style="padding:12px 16px;border:1px solid #E8ECF0;border-radius:10px;background:#fff;cursor:pointer;text-align:left;flex:1;min-width:140px;font-family:Sarabun,sans-serif;transition:all .15s" onmouseover="this.style.borderColor='#3B82F6'" onmouseout="this.style.borderColor='#E8ECF0'">
+            <div style="font-size:22px;margin-bottom:4px">${ic}</div>
+            <div style="font-size:13px;font-weight:600;color:#111">${l}</div>
+            <div style="font-size:11px;color:#9CA3AF;margin-top:2px">${d}</div>
           </button>`).join('')}
       </div>
     </div>
-    <div id="report-result"></div>
+    <div id="rresult"></div>
   </div>`;
 }
-
-async function loadReport(type) {
-  const el = document.getElementById('report-result');
-  el.innerHTML = spinner('กำลังสร้างรายงาน...');
-  try {
-    const actions = {license:'reports.licenseExpiry', training:'reports.trainingDue', full:'reports.fullExport'};
-    const res = await api(actions[type]);
-    const data = res.data || [];
-    if (!data.length) { el.innerHTML = '<p style="text-align:center;color:#aaa;padding:30px">ไม่มีรายการ 🎉</p>'; return; }
-    const headers = Object.keys(data[0]).slice(0,7);
-    el.innerHTML = `<div class="card" style="padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:13px;font-weight:600">พบ ${data.length} รายการ</div>
-        <button onclick="downloadCSV()" style="padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-family:Sarabun,sans-serif">⬇️ CSV</button>
+async function loadReport(type){
+  const el=document.getElementById('rresult');
+  el.innerHTML=spin('กำลังสร้างรายงาน...');
+  try{
+    const actions={license:'reports.licenseExpiry',training:'reports.trainingDue',full:'reports.fullExport'};
+    const res=await api(actions[type]);
+    const data=res.data||[];
+    reportData=data;
+    if(!data.length){el.innerHTML=empty('ไม่มีรายการในรายงานนี้ 🎉');return}
+    const headers=Object.keys(data[0]).slice(0,7);
+    el.innerHTML=`<div class="card card-p">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:600;color:#374151">พบ ${data.length} รายการ</div>
+        <button class="btn-primary" onclick="dlCSV()">⬇️ ดาวน์โหลด CSV</button>
       </div>
-      <div style="overflow-x:auto">
-        <table class="report-table">
+      <div style="overflow-x:auto;border-radius:8px;border:1px solid #E8ECF0">
+        <table class="rtable">
           <thead><tr>${headers.map(h=>`<th>${h.replace(/_/g,' ')}</th>`).join('')}</tr></thead>
-          <tbody>${data.slice(0,30).map(row=>`<tr>${headers.map(h=>`<td>${row[h]??'-'}</td>`).join('')}</tr>`).join('')}</tbody>
+          <tbody>${data.slice(0,30).map(r=>`<tr>${headers.map(h=>`<td>${r[h]??'-'}</td>`).join('')}</tr>`).join('')}</tbody>
         </table>
-        ${data.length>30?`<p style="text-align:center;font-size:11px;color:#aaa;padding:8px">แสดง 30 จาก ${data.length} — กด CSV เพื่อดูทั้งหมด</p>`:''}
+        ${data.length>30?`<div style="padding:10px;text-align:center;font-size:11px;color:#9CA3AF">แสดง 30 จาก ${data.length} รายการ — ดาวน์โหลด CSV เพื่อดูทั้งหมด</div>`:''}
       </div>
     </div>`;
-    window._reportData = data;
-  } catch(e) { el.innerHTML = `<p style="color:red">❌ ${e.message}</p>`; }
+  }catch(e){el.innerHTML=err(e.message)}
 }
-
-function downloadCSV() {
-  const data = window._reportData;
-  if (!data?.length) return;
-  const headers = Object.keys(data[0]);
-  const rows = data.map(r=>headers.map(h=>`"${r[h]??''}"`).join(','));
-  const csv = [headers.join(','),...rows].join('\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
-  a.download = `DLMS_${new Date().toISOString().slice(0,10)}.csv`;
+function dlCSV(){
+  if(!reportData?.length)return;
+  const h=Object.keys(reportData[0]);
+  const rows=reportData.map(r=>h.map(k=>`"${r[k]??''}"`).join(','));
+  const csv=[h.join(','),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download=`DLMS_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
 
-// ── Notifications ──
-async function renderNotifications(el) {
-  el.innerHTML = spinner();
-  try {
-    const notifs = await api('notifications.list', {page:1});
-    const unread = (notifs||[]).filter(n=>n.is_read!=='true').length;
-    el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-size:13px;color:#888">ยังไม่อ่าน <strong style="color:#1565C0">${unread}</strong> รายการ</div>
-      ${unread>0?`<button onclick="markAllRead()" style="padding:6px 12px;border:1px solid #E8E6E0;border-radius:7px;font-size:12px;cursor:pointer;background:#fff;font-family:Sarabun,sans-serif">✓ อ่านทั้งหมด</button>`:''}
+// ── NOTIFICATIONS ──
+async function pgNotifs(el){
+  el.innerHTML=spin();
+  try{
+    const notifs=await api('notifications.list',{page:1});
+    const arr=Array.isArray(notifs)?notifs:(notifs?.data||[]);
+    const unread=arr.filter(n=>n.is_read!=='true').length;
+    el.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;color:#6B7280">ยังไม่อ่าน <strong style="color:#1D4ED8">${unread}</strong> รายการ</div>
+      ${unread>0?`<button class="btn-ghost" onclick="markAll()">✓ อ่านทั้งหมด</button>`:''}
     </div>
-    <div id="notif-list">
-      ${(notifs||[]).length===0?'<p style="text-align:center;color:#aaa;padding:40px">ยังไม่มีการแจ้งเตือน</p>':
-        (notifs||[]).map(n=>{
-          const isRead = n.is_read==='true';
-          return `<div class="card" style="padding:12px 14px;margin-bottom:8px;background:${isRead?'#fff':'#EEF4FF'};border-color:${isRead?'#E8E6E0':'#B5D4F4'}">
-            <div style="display:flex;gap:10px">
-              <span style="font-size:18px;flex-shrink:0">${n.status==='sent'?'✅':'❌'}</span>
-              <div style="flex:1">
-                <div style="font-size:12px;color:#555;line-height:1.5">${(n.message||'').replace(/<[^>]*>/g,'')}</div>
-                <div style="font-size:10px;color:#aaa;margin-top:4px">${fmtDate(n.sent_at)} · ${n.channel||'telegram'}${!isRead?' · <span style="color:#1565C0;font-weight:600">● ใหม่</span>':''}</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
+    <div id="nlist">
+      ${arr.length===0?empty('ยังไม่มีการแจ้งเตือน'):arr.map(n=>{
+        const isR=n.is_read==='true';
+        return`<div class="card notif-card ${isR?'':'unread'}">
+          <span style="font-size:20px;flex-shrink:0;margin-top:2px">${n.status==='sent'?'✅':'❌'}</span>
+          <div style="flex:1">
+            <div style="font-size:12.5px;color:#374151;line-height:1.6">${(n.message||'').replace(/<[^>]*>/g,'')}</div>
+            <div style="font-size:10.5px;color:#9CA3AF;margin-top:4px">${fdate(n.sent_at)} · ${n.channel||'telegram'}${!isR?' · <span style="color:#1D4ED8;font-weight:600">● ใหม่</span>':''}</div>
+          </div>
+        </div>`}).join('')}
     </div>`;
-  } catch(e) { el.innerHTML = `<p style="color:red">❌ ${e.message}</p>`; }
+  }catch(e){el.innerHTML=err(e.message)}
+}
+async function markAll(){
+  try{await api('notifications.markRead',{all:true});pgNotifs(document.getElementById('content'))}catch(e){}
 }
 
-async function markAllRead() {
-  try {
-    await api('notifications.markRead', {all:true});
-    renderNotifications(document.getElementById('main-content'));
-  } catch(e) {}
-}
-
-// ── Settings ──
-function renderSettings(el) {
-  el.innerHTML = `
-  <div style="display:flex;flex-direction:column;gap:14px">
-    <div class="card" style="padding:20px">
-      <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:14px">⚙️ การตั้งค่าระบบ</div>
-      <div style="font-size:13px;color:#666;line-height:2">
-        🤖 Telegram Bot: <strong>เชื่อมต่อแล้ว</strong><br>
-        📢 Group ID: <code style="background:#F5F4F0;padding:1px 6px;border-radius:4px;font-size:12px">-5242820803</code><br>
-        ⏰ Daily Trigger: <strong>08:00 น.</strong><br>
-        🔔 แจ้งเตือน 45/30/15/0 วัน: <strong>เปิดอยู่</strong>
+// ── SETTINGS ──
+function pgSettings(el){
+  el.innerHTML=`
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:600px">
+    <div class="card card-p">
+      <div class="stitle">⚙️ การตั้งค่าระบบ</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${[['🤖 Telegram Bot','เชื่อมต่อแล้ว','#DCFCE7','#166534'],
+           ['📢 Group ID','-5242820803','#EFF6FF','#1D4ED8'],
+           ['⏰ Daily Trigger','08:00 น. ทุกวัน','#F0FDF4','#15803D'],
+           ['🔔 แจ้งเตือน 45/30/15/0 วัน','เปิดทั้งหมด','#ECFDF5','#059669']].map(([k,v,bg,c])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:${bg};border-radius:8px">
+            <span style="font-size:13px;color:#374151">${k}</span>
+            <span style="font-size:13px;font-weight:600;color:${c}">${v}</span>
+          </div>`).join('')}
       </div>
     </div>
-    <div class="card" style="padding:20px">
-      <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:10px">📋 เกี่ยวกับระบบ</div>
-      <div style="font-size:13px;color:#666;line-height:2">
-        ระบบ DLMS v1.0 — Driver License Management System<br>
+    <div class="card card-p">
+      <div class="stitle">📋 เกี่ยวกับระบบ</div>
+      <div style="font-size:13px;color:#6B7280;line-height:2">
+        DLMS v1.0 — Driver License Management System<br>
         ศูนย์วิจัย 5 แห่ง · พนักงาน 47 คน · ใบขับขี่ 94 ใบ<br>
         Backend: Google Apps Script + Google Sheets<br>
         Notification: Telegram Bot
       </div>
     </div>
-    <div class="card" style="padding:20px">
-      <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:10px">🔗 ลิงก์สำคัญ</div>
+    <div class="card card-p">
+      <div class="stitle">🔗 ลิงก์สำคัญ</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <a href="https://docs.google.com/spreadsheets/d/1YXSj-3Hw_4uS6HylFzJnuEJ-2rxaxDe76ACb83VC91c" target="_blank"
-          style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#EAF3DE;border-radius:8px;color:#3B6D11;font-size:13px">
-          📊 เปิด Google Sheet
+          style="display:flex;align-items:center;gap:8px;padding:11px 14px;background:#DCFCE7;border-radius:9px;color:#166534;font-size:13px;text-decoration:none;font-weight:500">
+          📊 เปิด Google Sheet (Database)
         </a>
         <a href="https://drive.google.com/drive/folders/1-iyX93SyB2YEWL1IG_n9EGLe3NHWG2Ex" target="_blank"
-          style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#E6F1FB;border-radius:8px;color:#185FA5;font-size:13px">
-          📁 เปิด Google Drive
+          style="display:flex;align-items:center;gap:8px;padding:11px 14px;background:#EFF6FF;border-radius:9px;color:#1D4ED8;font-size:13px;text-decoration:none;font-weight:500">
+          📁 เปิด Google Drive (ไฟล์แนบ)
         </a>
       </div>
     </div>
   </div>`;
 }
 
-// ─── INIT ─────────────────────────────────────────────────────────────────────
+// ─── INIT ────────────────────────────────────────────────────────────────────
 renderNav();
 renderPage();
-document.getElementById('pill-all')?.classList.add('active');
 </script>
 </body>
 </html>
