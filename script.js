@@ -188,6 +188,10 @@ function go(page, filterStatus, filterCenter, filterLicType) {
 }
 
 function goEmpDetail(empId) {
+  if (!empId || empId === 'undefined' || empId === '') {
+    showToast('❌ ไม่พบรหัสพนักงาน');
+    return;
+  }
   S.subPage = 'empDetail';
   renderNav();
   openEmployee(empId);
@@ -281,7 +285,7 @@ function kpiCard(label, val, sub, color, bgColor, icon, onclick, filterKey) {
       </div>
       <div class="kpi-icon" style="background:${bgColor}">${icon}</div>
     </div>
-    ${filterKey && val>0 ? `<div style="font-size:10.5px;color:${color};margin-top:6px;font-weight:500">แตะเพื่อดูรายละเอียด →</div>` : ''}
+
     <div class="kpi-ripple"></div>
   </div>`;
 }
@@ -362,7 +366,8 @@ function renderAlerts(alerts, el) {
   if (!alerts.length) { el.innerHTML = empty('ไม่มีรายการแจ้งเตือน 🎉'); return; }
   el.innerHTML = alerts.slice(0,6).map(a => {
     const cfg = STATUS_CFG[a.status] || STATUS_CFG.normal;
-    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border}" onclick="goEmpDetail('${a.employee_id||''}')">
+    const eid = a.employee_id || '';
+    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border}" ${eid?`onclick="goEmpDetail('${eid}')"`:'style="cursor:default"'}>
       <div class="alert-info">
         <span class="alert-icon">${a.type==='license'?'🪪':'🎓'}</span>
         <div>
@@ -752,7 +757,7 @@ function notifOverview(arr, allLic, empMap) {
       ${thisMonth.slice(0,5).map(l=>{
         const emp=empMap[l.employee_id]||{};
         const cfg=STATUS_CFG[getStatus(l.days_remaining)]||STATUS_CFG.normal;
-        return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.dot}40" onclick="goEmpDetail('${l.employee_id}')">
+        return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.dot}40" onclick="l.employee_id?goEmpDetail(l.employee_id):void 0">
           <div class="alert-info"><span style="font-size:16px">🪪</span>
             <div><div class="alert-name">${emp.full_name||l.employee_id}</div>
               <div class="alert-sub">${l.license_type} · หมด ${fdate(l.expiry_date)}</div></div></div>
@@ -827,7 +832,7 @@ function notifTimeline12(allLic, empMap) {
       </div>
       <div style="display:none;background:var(--bg-card);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:10px">
         ${m.licenses.map(l => `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer" onclick="goEmpDetail('${l.employee_id}')">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer" onclick="l.employee_id?goEmpDetail(l.employee_id):void 0">
             <div>
               <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${l.emp.full_name||l.employee_id}</div>
               <div style="font-size:11px;color:var(--text-secondary)">${l.license_type} · ${fdate(l.expiry_date)}</div>
@@ -1025,7 +1030,7 @@ function urgentReport(nearExp, empMap) {
     const days = l.days_remaining;
     const status = getStatus(days);
     const cfg = STATUS_CFG[status];
-    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border}" onclick="goEmpDetail('${l.employee_id}')">
+    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border}" onclick="l.employee_id?goEmpDetail(l.employee_id):void 0">
       <div class="alert-info">
         <span class="alert-icon">🪪</span>
         <div>
