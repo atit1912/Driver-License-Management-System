@@ -8,7 +8,7 @@
 // ─── CONFIG ────────────────────────────────────────────────────────────────
 const CFG = {
   GAS_URL: 'https://script.google.com/macros/s/AKfycbxtK-anMghpiAzNHgX-prdvCd__gMs_sywWh39a-uujDuXK8rGde65Kpjq9Ub5OmTM/exec',
-  CACHE_TTL: 10 * 60 * 1000,
+  CACHE_TTL: 15 * 60 * 1000,
   CENTERS: ['ศูนย์วิจัยไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า','ศูนย์วิจัยหาดเจ้า','ศูนย์วิจัยหัวกุญแจ','ศูนย์วิจัยเพชรบุรี'],
   CENTER_SHORT: {
     'ศูนย์วิจัยไร่สาม':'ไร่สาม',
@@ -214,6 +214,15 @@ function renderPage() {
 
 // ─── PAGE: DASHBOARD ───────────────────────────────────────────────────────
 async function pgDashboard(c) {
+  // ถ้ามี dashData แล้ว render skeleton ก่อนแล้ว update
+  if (S.dashData && S.centerData) {
+    renderDashContent(c, S.dashData, S.centerData);
+    // refresh ใน background
+    Promise.all([api('dashboard.summary'), api('dashboard.centerStats')])
+      .then(([sum, centers]) => { S.dashData=sum; S.centerData=centers; renderDashContent(c, sum, centers); })
+      .catch(()=>{});
+    return;
+  }
   c.innerHTML = spinner('กำลังโหลด Dashboard...');
   try {
     const [sum, centers] = await Promise.all([
@@ -222,6 +231,13 @@ async function pgDashboard(c) {
     ]);
     S.dashData = sum;
     S.centerData = centers;
+    renderDashContent(c, sum, centers);
+  } catch(e) {
+    c.innerHTML = `<div class="card card-p" style="color:var(--red);font-size:13px">❌ ${e.message}</div>`;
+  }
+}
+
+function renderDashContent(c, sum, centers) {
     const ls = sum.license_status || {};
     const total = Object.values(ls).reduce((a,b)=>a+b,0) || 1;
 
@@ -270,9 +286,6 @@ async function pgDashboard(c) {
     // Render alerts
     renderAlerts(sum.recent_alerts || [], $('alert-list'));
 
-  } catch(e) {
-    c.innerHTML = `<div class="card card-p" style="color:var(--red);font-size:13px">❌ ${e.message}</div>`;
-  }
 }
 
 function kpiCard(label, val, sub, color, bgColor, icon, onclick, filterKey) {
@@ -382,11 +395,14 @@ function renderAlerts(alerts, el) {
 
 // ─── PAGE: EMPLOYEES ───────────────────────────────────────────────────────
 async function pgEmployees(c) {
+  // ถ้ามี empList แล้ว render ทันที ไม่รอ API
+  if (S.empList.length > 0) {
+    renderEmpList(c);
+    return;
+  }
   c.innerHTML = spinner('กำลังโหลดรายชื่อ...');
   try {
-    if (!S.empList.length) {
-      S.empList = await api('employees.list', { pageSize: 100 });
-    }
+    S.empList = await api('employees.list', { pageSize: 100 });
     renderEmpList(c);
   } catch(e) {
     c.innerHTML = `<div class="card card-p" style="color:var(--red);font-size:13px">❌ ${e.message}</div>`;
@@ -476,10 +492,17 @@ function empCard(e) {
 // ─── EMPLOYEE DETAIL ───────────────────────────────────────────────────────
 async function openEmployee(empId) {
   const c = $('content');
+  // ใช้ cached empDetail ถ้ามี
+  if (S.empDetail?.emp?.employee_id === empId) {
+    renderEmpDetail(c, S.empDetail.emp, S.empDetail.lics, S.empDetail.trns);
+    return;
+  }
   c.innerHTML = spinner();
   try {
+    // ดึง emp จาก empList cache ก่อน (เร็วกว่า API)
+    const cachedEmp = S.empList.find(e => e.employee_id === empId);
     const [emp, lics, trns] = await Promise.all([
-      api('employees.get', { employee_id: empId }),
+      cachedEmp ? Promise.resolve(cachedEmp) : api('employees.get', { employee_id: empId }),
       api('licenses.getByEmployee', { employee_id: empId }),
       api('trainings.getByEmployee', { employee_id: empId }),
     ]);
@@ -654,7 +677,7 @@ async function pgNotifs(c) {
     const [notifData, licData, empListData] = await Promise.all([
       api('notifications.list', { page: 1 }),
       api('licenses.nearExpiry', { days: 365 }),
-      S.empList.length ? Promise.resolve(S.empList) : api('employees.list', { pageSize: 100 }),
+      Promise.resolve(S.empList.length ? S.empList : await api('employees.list', { pageSize: 100 })),
     ]);
     const arr = Array.isArray(notifData) ? notifData : (notifData?.data || []);
     const allLic = Array.isArray(licData) ? licData : (licData?.data || []);
@@ -757,7 +780,8 @@ function notifOverview(arr, allLic, empMap) {
       ${thisMonth.slice(0,5).map(l=>{
         const emp=empMap[l.employee_id]||{};
         const cfg=STATUS_CFG[getStatus(l.days_remaining)]||STATUS_CFG.normal;
-        return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.dot}40" onclick="l.employee_id?goEmpDetail(l.employee_id):void 0">
+        const eid2 = l.employee_id || '';
+    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.dot}40;cursor:${eid2?'pointer':'default'}" ${eid2?`onclick="goEmpDetail('${eid2}')"`:''}> 
           <div class="alert-info"><span style="font-size:16px">🪪</span>
             <div><div class="alert-name">${emp.full_name||l.employee_id}</div>
               <div class="alert-sub">${l.license_type} · หมด ${fdate(l.expiry_date)}</div></div></div>
@@ -832,7 +856,7 @@ function notifTimeline12(allLic, empMap) {
       </div>
       <div style="display:none;background:var(--bg-card);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:10px">
         ${m.licenses.map(l => `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer" onclick="l.employee_id?goEmpDetail(l.employee_id):void 0">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer" onclick="goEmpDetail('${l.employee_id}')">
             <div>
               <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${l.emp.full_name||l.employee_id}</div>
               <div style="font-size:11px;color:var(--text-secondary)">${l.license_type} · ${fdate(l.expiry_date)}</div>
@@ -901,9 +925,10 @@ async function pgReports(c) {
   window._reportTab = window._reportTab || 'summary';
 
   try {
+    // ใช้ cached data ถ้ามี
     const [sum, centers, nearExp] = await Promise.all([
-      api('dashboard.summary'),
-      api('dashboard.centerStats'),
+      S.dashData   ? Promise.resolve(S.dashData)   : api('dashboard.summary'),
+      S.centerData ? Promise.resolve(S.centerData) : api('dashboard.centerStats'),
       api('licenses.nearExpiry', { days: 45 }),
     ]);
     const arr = Array.isArray(nearExp) ? nearExp : (nearExp?.data || []);
@@ -1030,7 +1055,7 @@ function urgentReport(nearExp, empMap) {
     const days = l.days_remaining;
     const status = getStatus(days);
     const cfg = STATUS_CFG[status];
-    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border}" onclick="l.employee_id?goEmpDetail(l.employee_id):void 0">
+    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border}" onclick="goEmpDetail('${l.employee_id}')">
       <div class="alert-info">
         <span class="alert-icon">🪪</span>
         <div>
@@ -1224,8 +1249,8 @@ async function pgExecutive(c) {
   c.innerHTML = spinner('กำลังสร้างรายงานผู้บริหาร...');
   try {
     const [sum, centers, nearExp] = await Promise.all([
-      api('dashboard.summary'),
-      api('dashboard.centerStats'),
+      S.dashData   ? Promise.resolve(S.dashData)   : api('dashboard.summary'),
+      S.centerData ? Promise.resolve(S.centerData) : api('dashboard.centerStats'),
       api('licenses.nearExpiry', { days: 45 }),
     ]);
     const arr = Array.isArray(nearExp) ? nearExp : [];
@@ -1391,12 +1416,27 @@ function init() {
   renderNav();
   // Render first page
   renderPage();
-  // Preload in background
+  // Preload ทันที parallel
   setTimeout(() => {
-    api('dashboard.summary').catch(() => {});
-    api('dashboard.centerStats').catch(() => {});
-    api('employees.list', { pageSize: 100 }).then(d => { S.empList = d; }).catch(() => {});
-  }, 800);
+    Promise.all([
+      api('dashboard.summary'),
+      api('dashboard.centerStats'),
+      api('employees.list', { pageSize: 100 }),
+      api('licenses.nearExpiry', { days: 45 }),
+    ]).then(([sum, centers, emps]) => {
+      S.dashData    = sum;
+      S.centerData  = centers;
+      S.empList     = emps;
+      // อัพเดต notification badge
+      const unread = sum?.unread_notifications || 0;
+      const nb = $('notif-badge');
+      if (nb) { nb.textContent = unread; nb.style.display = unread > 0 ? 'flex' : 'none'; }
+      // ถ้ากำลังอยู่ที่ dashboard ให้ refresh ข้อมูล
+      if (S.page === 'dashboard' && $('content')) {
+        renderDashContent($('content'), sum, centers);
+      }
+    }).catch(() => {});
+  }, 300);
 }
 
 document.addEventListener('DOMContentLoaded', init);
