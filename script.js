@@ -649,6 +649,7 @@ function editLicModal(licId, empId, licType, licNo, expiryDate) {
         oninput="syncDateFromText(this.value)">
       <div style="font-size:11px;color:var(--text-muted);margin-top:3px">รูปแบบ: วัน/เดือน/ปี ค.ศ. เช่น 10/06/2031</div>
     </div>
+    <input type="hidden" id="ml-lictype" value="${licType}">
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-primary" style="flex:1" onclick="submitLic('${licId}','${empId}')">💾 บันทึก</button>
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-lic')">ยกเลิก</button>
@@ -700,18 +701,23 @@ async function submitLic(licId, empId) {
 
   try {
     showToast('⏳ กำลังบันทึก...');
+    const licType = $('ml-lictype')?.value || '';
     await api('licenses.upsert', {
       license_id: licId,
       employee_id: empId,
       license_number: licNo,
       expiry_date: expiry,
+      license_type: licType,
     });
     clearCache();
     closeModal('modal-lic');
     showToast('✅ บันทึกสำเร็จ! วันหมดอายุใหม่: ' + fdate(expiry));
     openEmployee(empId);
   } catch(e) {
+    console.error('submitLic error:', e);
     showToast('❌ ' + e.message);
+    // fallback alert ถ้า toast ไม่แสดง
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
   }
 }
 
@@ -1469,7 +1475,7 @@ function showToast(msg, dur = 2800) {
   if (!t) {
     t = document.createElement('div');
     t.id = 'toast';
-    t.style.cssText = 'position:fixed;bottom:calc(var(--nav-h)+16px);left:50%;transform:translateX(-50%);background:#1A2942;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:500;z-index:400;opacity:0;transition:opacity .2s;white-space:nowrap;max-width:90vw;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.3)';
+    t.style.cssText = 'position:fixed;bottom:calc(var(--nav-h)+20px);left:50%;transform:translateX(-50%);background:#1A2942;color:#fff;padding:12px 20px;border-radius:20px;font-size:14px;font-weight:500;z-index:9999;opacity:0;transition:opacity .25s;white-space:nowrap;max-width:90vw;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.4);pointer-events:none';
     document.body.appendChild(t);
   }
   t.textContent = msg;
