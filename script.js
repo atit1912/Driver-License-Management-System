@@ -379,13 +379,18 @@ function renderAlerts(alerts, el) {
   if (!alerts.length) { el.innerHTML = empty('ไม่มีรายการแจ้งเตือน 🎉'); return; }
   el.innerHTML = alerts.slice(0,6).map(a => {
     const cfg = STATUS_CFG[a.status] || STATUS_CFG.normal;
-    const eid = a.employee_id || '';
-    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border}" ${eid?`onclick="goEmpDetail('${eid}')"`:'style="cursor:default"'}>
+    // fallback: ค้นหา employee_id จาก empList ถ้า GAS ไม่ส่งมา
+    let eid = a.employee_id || '';
+    if (!eid && a.employee_name && S.empList.length) {
+      const found = S.empList.find(e => e.full_name === a.employee_name);
+      if (found) eid = found.employee_id;
+    }
+    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border};cursor:${eid?'pointer':'default'}" ${eid?`onclick="goEmpDetail('${eid}')"`:''}>
       <div class="alert-info">
         <span class="alert-icon">${a.type==='license'?'🪪':'🎓'}</span>
         <div>
           <div class="alert-name">${a.employee_name}</div>
-          <div class="alert-sub">${a.research_center} · ${a.license_type||a.course_name||''}</div>
+          <div class="alert-sub">${a.research_center||''} · ${a.license_type||a.course_name||''}</div>
         </div>
       </div>
       ${badge(a.status, a.days_remaining, true)}
