@@ -171,13 +171,17 @@ function renderNav() {
   $('today-date').textContent = today();
 }
 
-function go(page) {
+function go(page, filterStatus, filterCenter, filterLicType) {
   // destroy charts before leaving
   Object.values(S.charts).forEach(c => { try { c.destroy(); } catch {} });
   S.charts = {};
   S.page = page;
   S.subPage = null;
   S.empDetail = null;
+  // Apply filter if provided
+  if (filterStatus !== undefined) S.filterStatus = filterStatus || '';
+  if (filterCenter !== undefined) S.filterCenter = filterCenter || '';
+  if (filterLicType !== undefined) S.filterLicType = filterLicType || '';
   closeSidebar();
   renderNav();
   renderPage();
@@ -220,10 +224,10 @@ async function pgDashboard(c) {
     c.innerHTML = `
     <!-- KPI -->
     <div class="kpi-grid">
-      ${kpiCard('พนักงานทั้งหมด', sum.total_employees, '5 ศูนย์วิจัย', 'var(--blue)', '#DBEAFE', '👥', `go('employees');setFilter('','','')`)}
-      ${kpiCard('ใกล้หมดอายุ', sum.near_expiry, 'ภายใน 45 วัน', 'var(--amber)', '#FEF3C7', '⚠️', `go('employees');setFilter('45d','','')`)}
-      ${kpiCard('หมดอายุแล้ว', sum.expired, 'ต้องดำเนินการด่วน', 'var(--red)', '#FEE2E2', '🚨', `go('employees');setFilter('expired','','')`)}
-      ${kpiCard('Compliance', sum.compliance_rate + '%', 'ใบขับขี่ปกติ', 'var(--green)', '#DCFCE7', '✅', `go('employees');setFilter('normal','','')`)}
+      ${kpiCard('พนักงานทั้งหมด', sum.total_employees, '5 ศูนย์วิจัย', 'var(--blue)', '#DBEAFE', '👥', `go('employees','','','')`, '')}
+      ${kpiCard('ใกล้หมดอายุ', sum.near_expiry, 'ภายใน 45 วัน', 'var(--amber)', '#FEF3C7', '⚠️', `go('employees','45d','','')`, '45d')}
+      ${kpiCard('หมดอายุแล้ว', sum.expired, 'ต้องดำเนินการด่วน', 'var(--red)', '#FEE2E2', '🚨', `go('employees','expired','','')`, 'expired')}
+      ${kpiCard('Compliance', sum.compliance_rate + '%', 'ใบขับขี่ปกติ', 'var(--green)', '#DCFCE7', '✅', `go('employees','normal','','')`, 'normal')}
     </div>
 
     <!-- Center bars -->
@@ -267,7 +271,7 @@ async function pgDashboard(c) {
   }
 }
 
-function kpiCard(label, val, sub, color, bgColor, icon, onclick) {
+function kpiCard(label, val, sub, color, bgColor, icon, onclick, filterKey) {
   return `<div class="kpi-card" onclick="${onclick}" style="border-top: 3px solid ${color}">
     <div class="kpi-card-top">
       <div>
@@ -277,6 +281,7 @@ function kpiCard(label, val, sub, color, bgColor, icon, onclick) {
       </div>
       <div class="kpi-icon" style="background:${bgColor}">${icon}</div>
     </div>
+    ${filterKey && val>0 ? `<div style="font-size:10.5px;color:${color};margin-top:6px;font-weight:500">แตะเพื่อดูรายละเอียด →</div>` : ''}
     <div class="kpi-ripple"></div>
   </div>`;
 }
@@ -374,7 +379,9 @@ function renderAlerts(alerts, el) {
 async function pgEmployees(c) {
   c.innerHTML = spinner('กำลังโหลดรายชื่อ...');
   try {
-    S.empList = await api('employees.list', { pageSize: 100 });
+    if (!S.empList.length) {
+      S.empList = await api('employees.list', { pageSize: 100 });
+    }
     renderEmpList(c);
   } catch(e) {
     c.innerHTML = `<div class="card card-p" style="color:var(--red);font-size:13px">❌ ${e.message}</div>`;
@@ -427,13 +434,17 @@ function filterEmps() {
   const filtered = S.empList.filter(e => {
     const mq = !q || e.full_name.toLowerCase().includes(q) || e.employee_id.toLowerCase().includes(q) || (e.research_center||'').toLowerCase().includes(q);
     const mc = !center || e.research_center === center;
-    const ms = !S.filterStatus || e.overall_status === S.filterStatus;
+    // strict filter: ถ้า filterStatus มีค่า แสดงเฉพาะที่ตรงเท่านั้น
+    const ms = !S.filterStatus || (e.overall_status || 'normal') === S.filterStatus;
     return mq && mc && ms;
   });
   const listEl = $('emp-list');
-  if (listEl) listEl.innerHTML = filtered.length ? filtered.map(empCard).join('') : empty('ไม่พบรายชื่อ', '🔍');
+  if (listEl) listEl.innerHTML = filtered.length ? filtered.map(empCard).join('') : empty('ไม่พบรายชื่อที่ตรงเงื่อนไข', '🔍');
   const countEl = $('emp-count');
-  if (countEl) countEl.textContent = `พบ ${filtered.length} จาก ${S.empList.length} คน`;
+  if (countEl) {
+    const label = S.filterStatus ? `(filter: ${STATUS_CFG[S.filterStatus]?.label||S.filterStatus})` : '';
+    countEl.textContent = `พบ ${filtered.length} คน ${label}`;
+  }
 }
 
 function empCard(e) {
@@ -635,37 +646,228 @@ async function submitTrn(trnId, empId) {
 async function pgNotifs(c) {
   c.innerHTML = spinner();
   try {
-    const data = await api('notifications.list', { page: 1 });
-    const arr = Array.isArray(data) ? data : (data?.data || []);
+    const [notifData, licData, empListData] = await Promise.all([
+      api('notifications.list', { page: 1 }),
+      api('licenses.nearExpiry', { days: 365 }),
+      S.empList.length ? Promise.resolve(S.empList) : api('employees.list', { pageSize: 100 }),
+    ]);
+    const arr = Array.isArray(notifData) ? notifData : (notifData?.data || []);
+    const allLic = Array.isArray(licData) ? licData : (licData?.data || []);
     S.notifList = arr;
+    if (!S.empList.length) S.empList = empListData;
+    const empMap = {};
+    S.empList.forEach(e => empMap[e.employee_id] = e);
 
-    const tabs = [['all','ทั้งหมด'],['license_corp','เครือฯ'],['license_gov','ราชการ'],['near','ใกล้หมด'],['expired','หมดอายุ']];
-    let activeTab = 'all';
+    const tabs = [['overview','📊 ภาพรวม'],['timeline','📅 แนวโน้ม 12 เดือน'],['all','🔔 ทั้งหมด'],['corp','🏢 เครือฯ'],['gov','🏛️ ราชการ']];
+    window._notifTab2 = window._notifTab2 || 'overview';
 
-    const render = () => {
-      let filtered = arr;
-      if (activeTab === 'license_corp') filtered = arr.filter(n => (n.message||'').includes('เครือ'));
-      else if (activeTab === 'license_gov') filtered = arr.filter(n => (n.message||'').includes('ราชการ'));
-      else if (activeTab === 'near') filtered = arr.filter(n => ['45d','30d','15d'].includes(n.notif_type));
-      else if (activeTab === 'expired') filtered = arr.filter(n => n.notif_type === 'expired');
+    const renderTab = (tab) => {
+      window._notifTab2 = tab;
+      // Update tab buttons
+      document.querySelectorAll('.ntab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      const area = $('notif-area');
+      if (!area) return;
 
-      const unread = arr.filter(n => n.is_read !== 'true').length;
-      c.innerHTML = `
-      <div class="flex-between mb-8">
-        <div style="font-size:13px;color:var(--text-secondary)">ยังไม่อ่าน <strong style="color:var(--blue)">${unread}</strong> รายการ</div>
-        ${unread>0?`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px" onclick="markAllRead()">✓ อ่านทั้งหมด</button>`:''}
-      </div>
-      <div class="tabs-wrap mb-8">${tabs.map(([v,l])=>`<button class="tab-btn${activeTab===v?' active':''}" onclick="window._notifTab='${v}';pgNotifs(document.getElementById('content'))">${l}</button>`).join('')}</div>
-      ${filtered.length ? filtered.map(notifCard).join('') : empty('ไม่มีการแจ้งเตือน', '📬')}`;
+      if (tab === 'overview') {
+        area.innerHTML = notifOverview(arr, allLic, empMap);
+      } else if (tab === 'timeline') {
+        area.innerHTML = notifTimeline12(allLic, empMap);
+        renderTimelineChart(allLic);
+      } else {
+        let filtered = arr;
+        if (tab === 'corp') filtered = arr.filter(n => (n.message||'').includes('เครือ'));
+        else if (tab === 'gov') filtered = arr.filter(n => (n.message||'').includes('ราชการ'));
+        area.innerHTML = filtered.length ? filtered.map(notifCard).join('') : empty('ไม่มีการแจ้งเตือน', '📬');
+      }
     };
 
-    window._notifTab = window._notifTab || 'all';
-    activeTab = window._notifTab;
-    render();
+    const unread = arr.filter(n => n.is_read !== 'true').length;
+    c.innerHTML = `
+    <div class="flex-between mb-8">
+      <div style="font-size:13px;color:var(--text-secondary)">ยังไม่อ่าน <strong style="color:var(--blue)">${unread}</strong> รายการ</div>
+      ${unread>0?`<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px" onclick="markAllRead()">✓ อ่านทั้งหมด</button>`:''}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      ${tabs.map(([v,l])=>`<button class="ntab-btn filter-pill${window._notifTab2===v?' active':''}" data-tab="${v}" onclick="(function(){document.querySelectorAll('.ntab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab==='${v}'));${['overview','timeline','all','corp','gov'].map((t,i)=>`renderNotifTab('${t}')`)[['overview','timeline','all','corp','gov'].indexOf(v)]};renderNotifTab('${v}')})()">${l}</button>`).join('')}
+    </div>
+    <div id="notif-area"></div>`;
+
+    window.renderNotifTab = renderTab;
+    renderTab(window._notifTab2);
 
   } catch(e) {
     c.innerHTML = `<div class="card card-p" style="color:var(--red);font-size:13px">❌ ${e.message}</div>`;
   }
+}
+
+function notifOverview(arr, allLic, empMap) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const expired = allLic.filter(l => (l.days_remaining??999) < 0);
+  const d15     = allLic.filter(l => { const d=l.days_remaining??999; return d>=0&&d<=15; });
+  const d30     = allLic.filter(l => { const d=l.days_remaining??999; return d>15&&d<=30; });
+  const d45     = allLic.filter(l => { const d=l.days_remaining??999; return d>30&&d<=45; });
+  const d90     = allLic.filter(l => { const d=l.days_remaining??999; return d>45&&d<=90; });
+
+  const riskRow = (icon,label,items,color,bg,status) => items.length===0?'':
+    `<div class="alert-row" style="background:${bg};border-color:${color}40;cursor:pointer" onclick="go('employees','${status}','','')">
+      <div class="alert-info"><span style="font-size:20px">${icon}</span>
+        <div><div class="alert-name" style="color:${color}">${items.length} ใบขับขี่</div>
+          <div class="alert-sub">${label}</div></div></div>
+      <span style="font-size:14px;color:${color}">›</span>
+    </div>`;
+
+  return `
+  <!-- Risk Summary -->
+  <div class="card card-p mb-14">
+    <div class="card-title">🚦 สรุปสถานะปัจจุบัน</div>
+    ${riskRow('⛔','หมดอายุแล้ว — ต้องดำเนินการทันที',expired,'#DC2626','#FEE2E2','expired')}
+    ${riskRow('🔴','เหลือ ≤ 15 วัน — เร่งด่วน',d15,'#DC2626','#FEE2E2','15d')}
+    ${riskRow('🟠','เหลือ 16-30 วัน — ควรดำเนินการ',d30,'#EA580C','#FED7AA','30d')}
+    ${riskRow('🟡','เหลือ 31-45 วัน — เตรียมการ',d45,'#D97706','#FEF3C7','45d')}
+    ${d90.length?`<div class="card-p" style="background:var(--bg-card2);border-radius:8px;margin-top:8px">
+      <div style="font-size:12px;color:var(--text-secondary)">📌 เหลือ 46-90 วัน: <strong>${d90.length} ใบ</strong> — เตรียมวางแผน</div>
+    </div>`:''}
+    ${(expired.length+d15.length+d30.length+d45.length)===0?`<div style="text-align:center;padding:20px;color:var(--green);font-size:14px;font-weight:600">✅ ไม่มีรายการเร่งด่วน</div>`:''}
+  </div>
+
+  <!-- Notification History Summary -->
+  <div class="card card-p mb-14">
+    <div class="card-title">📊 สถิติการแจ้งเตือน</div>
+    ${[['ส่งสำเร็จ',arr.filter(n=>n.status==='sent').length,'var(--green)'],
+       ['ส่งไม่สำเร็จ',arr.filter(n=>n.status==='failed').length,'var(--red)'],
+       ['ยังไม่อ่าน',arr.filter(n=>n.is_read!=='true').length,'var(--blue)'],
+       ['ทั้งหมด',arr.length,'var(--text-primary)']].map(([l,v,c])=>`
+      <div class="stat-row-link">
+        <span style="color:var(--text-secondary)">${l}</span>
+        <strong style="color:${c}">${v}</strong>
+      </div>`).join('')}
+  </div>
+
+  <!-- Upcoming this month -->
+  ${(()=>{
+    const thisMonth = allLic.filter(l=>{const d=l.days_remaining??999;return d>=0&&d<=30;});
+    if(!thisMonth.length) return '';
+    return `<div class="card card-p">
+      <div class="card-title">📅 ภายใน 30 วันนี้ (${thisMonth.length} รายการ)</div>
+      ${thisMonth.slice(0,5).map(l=>{
+        const emp=empMap[l.employee_id]||{};
+        const cfg=STATUS_CFG[getStatus(l.days_remaining)]||STATUS_CFG.normal;
+        return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.dot}40" onclick="goEmpDetail('${l.employee_id}')">
+          <div class="alert-info"><span style="font-size:16px">🪪</span>
+            <div><div class="alert-name">${emp.full_name||l.employee_id}</div>
+              <div class="alert-sub">${l.license_type} · หมด ${fdate(l.expiry_date)}</div></div></div>
+          ${badge(getStatus(l.days_remaining),l.days_remaining,true)}
+        </div>`;
+      }).join('')}
+    </div>`;
+  })()}`;
+}
+
+function notifTimeline12(allLic, empMap) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  // สร้าง bucket 12 เดือนข้างหน้า
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    months.push({
+      key: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,
+      label: d.toLocaleDateString('th-TH', { month: 'short', year: '2-digit' }),
+      year: d.getFullYear(), month: d.getMonth(),
+      licenses: [],
+    });
+  }
+
+  allLic.forEach(l => {
+    if (!l.expiry_date) return;
+    const days = l.days_remaining ?? daysLeft(l.expiry_date);
+    if (days === null || days < 0 || days > 365) return;
+    const exp = new Date(now.getTime() + days * 86400000);
+    const key = `${exp.getFullYear()}-${String(exp.getMonth()+1).padStart(2,'0')}`;
+    const bucket = months.find(m => m.key === key);
+    if (bucket) {
+      const emp = empMap[l.employee_id] || {};
+      bucket.licenses.push({ ...l, emp, days });
+    }
+  });
+
+  const maxCount = Math.max(...months.map(m => m.licenses.length), 1);
+
+  const chartData = JSON.stringify(months.map(m => m.licenses.length));
+  const chartLabels = JSON.stringify(months.map(m => m.label));
+
+  return `
+  <!-- Bar chart -->
+  <div class="card card-p mb-14">
+    <div class="card-title">📊 แนวโน้มใบขับขี่หมดอายุ 12 เดือนข้างหน้า</div>
+    <div style="height:160px;position:relative"><canvas id="timeline-chart"></canvas></div>
+    <div class="legend" style="margin-top:8px">
+      <div class="legend-item"><div class="legend-dot" style="background:#EA580C"></div>จำนวนใบที่หมดอายุในเดือนนั้น</div>
+    </div>
+    <div data-chart-data='${chartData}' data-chart-labels='${chartLabels}' id="chart-meta" style="display:none"></div>
+  </div>
+
+  <!-- Timeline month by month -->
+  <div class="section-title">📋 รายการแยกตามเดือน</div>
+  ${months.map(m => {
+    if (!m.licenses.length) return `
+      <div style="padding:10px 14px;border-radius:10px;background:var(--bg-card2);border:1px solid var(--border);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:13px;font-weight:600;color:var(--text-secondary)">${m.label}</div>
+        <div style="font-size:12px;color:var(--text-muted)">ไม่มีรายการ ✅</div>
+      </div>`;
+
+    const isUrgent = m.licenses.some(l => l.days <= 30);
+    return `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px ${m.licenses.length?'10px 0 0':'10px'};background:${isUrgent?'#FEE2E2':'var(--bg-card2)'};border:1px solid ${isUrgent?'#FCA5A5':'var(--border)'};cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <div style="font-size:13px;font-weight:700;color:${isUrgent?'#DC2626':'var(--text-primary)'}">📅 ${m.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="background:${isUrgent?'#DC2626':m.licenses.length>3?'#D97706':'var(--blue)'};color:#fff;font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px">${m.licenses.length} ใบ</span>
+          <span style="font-size:12px;color:var(--text-muted)">▾</span>
+        </div>
+      </div>
+      <div style="display:none;background:var(--bg-card);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:10px">
+        ${m.licenses.map(l => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer" onclick="goEmpDetail('${l.employee_id}')">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${l.emp.full_name||l.employee_id}</div>
+              <div style="font-size:11px;color:var(--text-secondary)">${l.license_type} · ${fdate(l.expiry_date)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${l.emp.research_center||''}</div>
+            </div>
+            ${badge(getStatus(l.days), l.days, true)}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('')}`;
+}
+
+function renderTimelineChart(allLic) {
+  const meta = $('chart-meta');
+  if (!meta || typeof Chart === 'undefined') return;
+  if (S.charts.timeline) { try { S.charts.timeline.destroy(); } catch {} }
+  const canvas = $('timeline-chart');
+  if (!canvas) return;
+  const rawData = JSON.parse(meta.dataset.chartData || '[]');
+  const rawLabels = JSON.parse(meta.dataset.chartLabels || '[]');
+  S.charts.timeline = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rawLabels,
+      datasets: [{
+        label: 'จำนวนใบที่หมดอายุ',
+        data: rawData,
+        backgroundColor: rawData.map(v => v > 3 ? '#DC2626' : v > 1 ? '#EA580C' : '#D97706'),
+        borderRadius: 6,
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} ใบ` } } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+      },
+      animation: { duration: 600 },
+    },
+  });
 }
 
 function notifCard(n) {
@@ -882,24 +1084,51 @@ async function exportPDF() {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Sarabun', sans-serif; font-size: 13px; color: #1A2942; background: #fff; padding: 30px; }
         h1 { font-size: 22px; font-weight: 700; color: #1D4ED8; margin-bottom: 4px; }
-        h2 { font-size: 15px; font-weight: 700; color: #1A2942; margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #E8ECF0; }
+        h2 { font-size: 15px; font-weight: 700; color: #1A2942; margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #E8ECF0; display:flex;align-items:center;gap:6px; }
         .meta { font-size: 12px; color: #6B7C93; margin-bottom: 20px; }
         .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
-        .kpi-box { border: 1px solid #E8ECF0; border-radius: 10px; padding: 14px; }
-        .kpi-label { font-size: 11px; color: #6B7C93; margin-bottom: 4px; }
+        .kpi-box { border-radius: 12px; padding: 14px; border-top: 4px solid; }
+        .kpi-box-blue  { background:#EFF6FF; border-color:#1D4ED8; }
+        .kpi-box-amber { background:#FFFBEB; border-color:#D97706; }
+        .kpi-box-red   { background:#FEF2F2; border-color:#DC2626; }
+        .kpi-box-green { background:#F0FDF4; border-color:#16A34A; }
+        .kpi-label { font-size: 11px; color: #6B7C93; margin-bottom: 4px; font-weight:500; }
         .kpi-val { font-size: 26px; font-weight: 700; }
+        .kpi-sub { font-size: 10px; color: #9CA3AF; margin-top: 3px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
-        th { padding: 8px 10px; background: #F8FAFC; border-bottom: 2px solid #E8ECF0; text-align: left; font-weight: 600; color: #6B7C93; }
-        td { padding: 8px 10px; border-bottom: 1px solid #F0F2F5; }
+        th { padding: 9px 10px; background: #F8FAFC; border-bottom: 2px solid #E8ECF0; text-align: left; font-weight: 600; color: #6B7C93; }
+        td { padding: 9px 10px; border-bottom: 1px solid #F0F2F5; }
         tr:last-child td { border-bottom: none; }
-        .c-green { color: #16A34A; font-weight: 600; }
-        .c-red   { color: #DC2626; font-weight: 600; }
-        .c-amber { color: #D97706; font-weight: 600; }
-        .badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600; }
-        .badge-red { background:#FEE2E2;color:#991B1B; }
-        .badge-amber { background:#FEF3C7;color:#92400E; }
-        .footer { margin-top: 30px; padding-top: 14px; border-top: 1px solid #E8ECF0; font-size: 11px; color: #9AABBD; text-align: center; }
-        @media print { body { padding: 15px; } }
+        tr:nth-child(even) td { background: #FAFAFA; }
+        .c-green { color: #16A34A !important; font-weight: 600; }
+        .c-red   { color: #DC2626 !important; font-weight: 600; }
+        .c-amber { color: #D97706 !important; font-weight: 600; }
+        .c-blue  { color: #1D4ED8 !important; font-weight: 600; }
+        /* Status badges with colors */
+        .badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid; }
+        .badge-expired { background:#FEE2E2;color:#991B1B;border-color:#F87171; }
+        .badge-15d     { background:#FEE2E2;color:#991B1B;border-color:#FCA5A5; }
+        .badge-30d     { background:#FED7AA;color:#9A3412;border-color:#FDBA74; }
+        .badge-45d     { background:#FEF3C7;color:#92400E;border-color:#FCD34D; }
+        .badge-normal  { background:#DCFCE7;color:#166534;border-color:#86EFAC; }
+        /* Risk summary boxes */
+        .risk-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px; }
+        .risk-box { border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:8px; }
+        .risk-box-red   { background:#FEE2E2; }
+        .risk-box-amber { background:#FEF3C7; }
+        .risk-num { font-size:22px;font-weight:700; }
+        .risk-lbl { font-size:11px;font-weight:500; }
+        /* Progress bar for centers */
+        .prog-bar { height:8px;border-radius:4px;overflow:hidden;display:flex;margin-top:4px; }
+        .prog-seg { height:100%; }
+        /* Compliance % color */
+        .comp-high { color:#16A34A;font-weight:700; }
+        .comp-mid  { color:#D97706;font-weight:700; }
+        .comp-low  { color:#DC2626;font-weight:700; }
+        .footer { margin-top: 30px; padding-top: 14px; border-top: 2px solid #E8ECF0; font-size: 11px; color: #9AABBD; text-align: center; }
+        .section-box { background:#F8FAFC;border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid #E8ECF0; }
+        @media print { body { padding: 15px; } .no-print { display:none; } }
+        @page { size: A4; margin: 20mm; }
       </style>
     </head><body>
       <h1>🚗 DLMS — รายงานสถานะใบขับขี่</h1>
@@ -907,15 +1136,17 @@ async function exportPDF() {
 
       <h2>📊 ส่วนที่ 1 — ภาพรวม</h2>
       <div class="kpi-grid">
-        <div class="kpi-box"><div class="kpi-label">พนักงานทั้งหมด</div><div class="kpi-val" style="color:#1D4ED8">${sum.total_employees}</div></div>
-        <div class="kpi-box"><div class="kpi-label">ใกล้หมดอายุ</div><div class="kpi-val" style="color:#D97706">${sum.near_expiry}</div></div>
-        <div class="kpi-box"><div class="kpi-label">หมดอายุแล้ว</div><div class="kpi-val" style="color:#DC2626">${sum.expired}</div></div>
-        <div class="kpi-box"><div class="kpi-label">Compliance Rate</div><div class="kpi-val" style="color:#16A34A">${sum.compliance_rate}%</div></div>
+        <div class="kpi-box kpi-box-blue"><div class="kpi-label">พนักงานทั้งหมด</div><div class="kpi-val c-blue">${sum.total_employees}</div><div class="kpi-sub">5 ศูนย์วิจัย</div></div>
+        <div class="kpi-box kpi-box-amber"><div class="kpi-label">ใกล้หมดอายุ</div><div class="kpi-val c-amber">${sum.near_expiry}</div><div class="kpi-sub">ภายใน 45 วัน</div></div>
+        <div class="kpi-box kpi-box-red"><div class="kpi-label">หมดอายุแล้ว</div><div class="kpi-val c-red">${sum.expired}</div><div class="kpi-sub">ต้องดำเนินการด่วน</div></div>
+        <div class="kpi-box kpi-box-green"><div class="kpi-label">Compliance Rate</div><div class="kpi-val c-green">${sum.compliance_rate}%</div><div class="kpi-sub">ใบขับขี่ปกติ</div></div>
       </div>
+      <div class="section-box">
       <table>
-        <tr><th>สถานะ</th><th>จำนวน</th><th>%</th></tr>
-        ${[['ปกติ','normal','c-green'],['45 วัน','45d','c-amber'],['30 วัน','30d','c-amber'],['15 วัน','15d','c-red'],['หมดอายุ','expired','c-red']].map(([l,k,c])=>`<tr><td>${l}</td><td class="${c}">${ls[k]||0}</td><td>${Math.round((ls[k]||0)/Math.max(Object.values(ls).reduce((a,b)=>a+b,0),1)*100)}%</td></tr>`).join('')}
+        <tr><th>สถานะ</th><th>จำนวน</th><th>%</th><th>แสดง</th></tr>
+        ${[['ปกติ','normal','c-green','badge-normal'],['45 วัน','45d','c-amber','badge-45d'],['30 วัน','30d','c-amber','badge-30d'],['15 วัน','15d','c-red','badge-15d'],['หมดอายุ','expired','c-red','badge-expired']].map(([l,k,c,bc])=>`<tr><td><span class="badge ${bc}">${l}</span></td><td class="${c}">${ls[k]||0}</td><td>${Math.round((ls[k]||0)/Math.max(Object.values(ls).reduce((a,b)=>a+b,0),1)*100)}%</td><td style="background:${k==='normal'?'#F0FDF4':k==='expired'?'#FEF2F2':'#FFFBEB'}"></td></tr>`).join('')}
       </table>
+      </div>
 
       <h2>🏢 ส่วนที่ 2 — สรุปตามศูนย์วิจัย</h2>
       <table>
@@ -923,7 +1154,16 @@ async function exportPDF() {
         ${centers.map(c=>{
           const tot=(c.normal+c.near_expiry+c.expired)||1;
           const comp=Math.round(c.normal/tot*100);
-          return `<tr><td style="font-weight:500">${c.center}</td><td>${c.total}</td><td class="c-green">${c.normal}</td><td class="c-amber">${c.near_expiry}</td><td class="c-red">${c.expired}</td><td style="font-weight:700;color:${comp>=90?'#16A34A':comp>=70?'#D97706':'#DC2626'}">${comp}%</td></tr>`;
+          const compCls=comp>=90?'comp-high':comp>=70?'comp-mid':'comp-low';
+          const pw=v=>Math.max(Math.round(v/tot*100),v>0?2:0);
+          return `<tr>
+            <td style="font-weight:600">${c.center}</td>
+            <td>${c.total}</td>
+            <td class="c-green">${c.normal}</td>
+            <td class="c-amber">${c.near_expiry}</td>
+            <td class="c-red">${c.expired}</td>
+            <td><span class="${compCls}">${comp}%</span></td>
+          </tr>`;
         }).join('')}
       </table>
 
