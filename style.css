@@ -77,10 +77,71 @@ body.dark {
   --badge-exp:    #7F1D1D; --badge-exp-t:    #FECACA;
 }
 
-/* ── Dark mode: force text colors on all children ─── */
-body.dark * {
-  border-color: rgba(255,255,255,.07) !important;
-}
+/* ── Dark mode: global overrides ─── */
+
+/* Force ทุก element ให้ใช้ dark colors */
+body.dark { color-scheme: dark; }
+
+/* Card backgrounds ทุกชนิด */
+body.dark .card,
+body.dark .kpi-card,
+body.dark .emp-card,
+body.dark .lic-card,
+body.dark .notif-item,
+body.dark .risk-card { background: #162035 !important; border-color: rgba(255,255,255,.07) !important; }
+
+/* Text ทุก element ใน card */
+body.dark .card *,
+body.dark .kpi-card *,
+body.dark .emp-card *,
+body.dark .lic-card * { color: inherit; }
+
+/* Force text ใน elements ที่มี inline style */
+body.dark div[style*="color:#"],
+body.dark span[style*="color:#"],
+body.dark p[style*="color:#"] { color: var(--text-primary) !important; }
+
+/* ยกเว้นสีพิเศษที่ต้องคงไว้ */
+body.dark [style*="color:var(--"] { color: inherit !important; }
+body.dark [style*="color:#16A34A"] { color: #4ADE80 !important; }
+body.dark [style*="color:#1D4ED8"],
+body.dark [style*="color:var(--blue)"] { color: #60A5FA !important; }
+body.dark [style*="color:#DC2626"],
+body.dark [style*="color:var(--red)"] { color: #F87171 !important; }
+body.dark [style*="color:#D97706"],
+body.dark [style*="color:var(--amber)"] { color: #FCD34D !important; }
+body.dark [style*="color:#fff"],
+body.dark [style*="color:white"] { color: #fff !important; }
+body.dark [style*="color:rgba(255"] { color: rgba(255,255,255,.7) !important; }
+
+/* Background overrides */
+body.dark [style*="background:#fff"],
+body.dark [style*="background: #fff"] { background: #162035 !important; }
+body.dark [style*="background:#F8FAFC"],
+body.dark [style*="background:#F5F4F0"],
+body.dark [style*="background:#F0F2F5"],
+body.dark [style*="background:#FAFBFC"],
+body.dark [style*="background:#FAFAF8"] { background: #1C2A44 !important; }
+
+/* Alert/status card backgrounds */
+body.dark [style*="background:#DCFCE7"] { background: #14532D !important; }
+body.dark [style*="background:#FEF3C7"],
+body.dark [style*="background:#FFFBEB"] { background: #78350F !important; }
+body.dark [style*="background:#FED7AA"] { background: #7C2D12 !important; }
+body.dark [style*="background:#FEE2E2"],
+body.dark [style*="background:#FEF2F2"],
+body.dark [style*="background:#FECACA"] { background: #7F1D1D !important; }
+body.dark [style*="background:#EFF6FF"],
+body.dark [style*="background:#DBEAFE"],
+body.dark [style*="background:#E6F1FB"] { background: #1E3A5F !important; }
+body.dark [style*="background:#F0FDF4"] { background: #14532D !important; }
+
+/* border-color overrides */
+body.dark * { border-color: rgba(255,255,255,.07) !important; }
+/* ยกเว้น border ที่ต้องการสีจริง */
+body.dark [style*="border-left:4px solid"],
+body.dark [style*="border-top: 3px solid"],
+body.dark [style*="border-top:3px solid"] { border-color: inherit !important; }
 /* Text สีเข้มให้กลายเป็นสีอ่อน */
 body.dark [style*="color:#1A2942"],
 body.dark [style*="color:#111827"],

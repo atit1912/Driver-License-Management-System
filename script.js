@@ -88,12 +88,17 @@ function getStatus(days) {
 }
 
 const STATUS_CFG = {
-  normal:  { cls: 's-normal',  bg: '#DCFCE7', border: '#86EFAC', dot: '#16A34A', label: 'ปกติ',     barColor: '#16A34A' },
-  '45d':   { cls: 's-45d',    bg: '#FEF3C7', border: '#FCD34D', dot: '#D97706', label: '45 วัน',  barColor: '#D97706' },
-  '30d':   { cls: 's-30d',    bg: '#FED7AA', border: '#FDBA74', dot: '#EA580C', label: '30 วัน',  barColor: '#EA580C' },
-  '15d':   { cls: 's-15d',    bg: '#FEE2E2', border: '#FCA5A5', dot: '#DC2626', label: '15 วัน',  barColor: '#DC2626' },
-  expired: { cls: 's-expired', bg: '#FEE2E2', border: '#F87171', dot: '#991B1B', label: 'หมดอายุ', barColor: '#991B1B' },
+  normal:  { cls: 's-normal',  bg: '#DCFCE7', border: '#86EFAC', dot: '#16A34A', label: 'ปกติ',     barColor: '#16A34A', darkBg: '#14532D' },
+  '45d':   { cls: 's-45d',    bg: '#FEF3C7', border: '#FCD34D', dot: '#D97706', label: '45 วัน',  barColor: '#D97706', darkBg: '#78350F' },
+  '30d':   { cls: 's-30d',    bg: '#FED7AA', border: '#FDBA74', dot: '#EA580C', label: '30 วัน',  barColor: '#EA580C', darkBg: '#7C2D12' },
+  '15d':   { cls: 's-15d',    bg: '#FEE2E2', border: '#FCA5A5', dot: '#DC2626', label: '15 วัน',  barColor: '#DC2626', darkBg: '#7F1D1D' },
+  expired: { cls: 's-expired', bg: '#FEE2E2', border: '#F87171', dot: '#991B1B', label: 'หมดอายุ', barColor: '#991B1B', darkBg: '#7F1D1D' },
 };
+
+// Helper: ตรวจว่า dark mode อยู่หรือเปล่า
+const isDark = () => document.body.classList.contains('dark');
+// Helper: เลือก bg ตาม theme
+const themeBg = (cfg) => isDark() ? (cfg.darkBg || cfg.bg) : cfg.bg;
 
 function badge(status, days, sm = false) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.normal;
@@ -242,6 +247,23 @@ function renderDashContent(c, sum, centers) {
     const total = Object.values(ls).reduce((a,b)=>a+b,0) || 1;
 
     c.innerHTML = `
+    <!-- System Header Banner -->
+    <div style="background:linear-gradient(135deg,var(--blue),#1E40AF);border-radius:16px;padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px">Driver License Management System</div>
+        <div style="font-size:18px;font-weight:700;color:#fff">🚗 DLMS</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px">พัฒนาโดย Atit Chimnan · SHE&En Officer</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:rgba(255,255,255,.5)">ข้อมูล ณ วันที่</div>
+        <div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.9)">${new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})}</div>
+        <div style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.15);border-radius:20px;padding:3px 10px">
+          <span style="width:6px;height:6px;border-radius:50%;background:#4ADE80;display:inline-block"></span>
+          <span style="font-size:11px;color:#fff">ระบบปกติ</span>
+        </div>
+      </div>
+    </div>
+
     <!-- KPI -->
     <div class="kpi-grid">
       ${kpiCard('พนักงานทั้งหมด', sum.total_employees, '5 ศูนย์วิจัย', 'var(--blue)', '#DBEAFE', '👥', `go('employees','','','')`, '')}
@@ -385,7 +407,7 @@ function renderAlerts(alerts, el) {
       const found = S.empList.find(e => e.full_name === a.employee_name);
       if (found) eid = found.employee_id;
     }
-    return `<div class="alert-row" style="background:${cfg.bg};border-color:${cfg.border};cursor:${eid?'pointer':'default'}" ${eid?`onclick="goEmpDetail('${eid}')"`:''}>
+    return `<div class="alert-row" style="background:${themeBg(cfg)};border-color:${cfg.border};cursor:${eid?'pointer':'default'}" ${eid?`onclick="goEmpDetail('${eid}')"`:''}>
       <div class="alert-info">
         <span class="alert-icon">${a.type==='license'?'🪪':'🎓'}</span>
         <div>
