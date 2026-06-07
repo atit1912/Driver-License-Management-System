@@ -77,6 +77,133 @@ body.dark {
   --badge-exp:    #7F1D1D; --badge-exp-t:    #FECACA;
 }
 
+/* ── Dark mode: force text colors on all children ─── */
+body.dark * {
+  border-color: rgba(255,255,255,.07) !important;
+}
+/* Text สีเข้มให้กลายเป็นสีอ่อน */
+body.dark [style*="color:#1A2942"],
+body.dark [style*="color:#111827"],
+body.dark [style*="color:#1a1a1a"],
+body.dark [style*="color:#333"],
+body.dark [style*="color:#374151"],
+body.dark [style*="color:#111"] { color: #E8EFF8 !important; }
+
+body.dark [style*="color:#6B7280"],
+body.dark [style*="color:#6b7c93"],
+body.dark [style*="color:#555"] { color: #8FA3BB !important; }
+
+body.dark [style*="color:#9CA3AF"],
+body.dark [style*="color:#9AABBD"],
+body.dark [style*="color:#aaa"],
+body.dark [style*="color:#bbb"] { color: #556880 !important; }
+
+/* Background สีขาว/อ่อนใน card ให้เปลี่ยน */
+body.dark [style*="background:#fff"],
+body.dark [style*="background: #fff"],
+body.dark [style*="background:white"] { background: #162035 !important; }
+
+body.dark [style*="background:#F8FAFC"],
+body.dark [style*="background:#F5F4F0"],
+body.dark [style*="background:#F0F2F5"],
+body.dark [style*="background:#FAFAF8"],
+body.dark [style*="background:#FAFBFC"] { background: #1C2A44 !important; }
+
+/* Alert/risk cards ใน dark mode */
+body.dark [style*="background:#DCFCE7"] { background: #14532D !important; }
+body.dark [style*="background:#FEF3C7"] { background: #78350F !important; }
+body.dark [style*="background:#FED7AA"] { background: #7C2D12 !important; }
+body.dark [style*="background:#FEE2E2"] { background: #7F1D1D !important; }
+body.dark [style*="background:#FECACA"] { background: #7F1D1D !important; }
+body.dark [style*="background:#EFF6FF"],
+body.dark [style*="background:#DBEAFE"] { background: #1E3A5F !important; }
+body.dark [style*="background:#F0FDF4"] { background: #14532D !important; }
+body.dark [style*="background:#FFFBEB"] { background: #78350F !important; }
+body.dark [style*="background:#FEF2F2"] { background: #7F1D1D !important; }
+body.dark [style*="background:#F8FAFC"] { background: #1C2A44 !important; }
+
+/* Section titles, card titles */
+body.dark .card-title,
+body.dark .section-title { color: #CBD5E1 !important; }
+
+/* Table */
+body.dark .data-table th { background: #0D1526 !important; color: #8FA3BB !important; }
+body.dark .data-table td { color: #CBD5E1 !important; }
+
+/* Form inputs */
+body.dark .form-input,
+body.dark .search-input,
+body.dark .fsel {
+  background: #0D1526 !important;
+  color: #E8EFF8 !important;
+  border-color: rgba(255,255,255,.1) !important;
+}
+
+/* Filter pills */
+body.dark .filter-pill {
+  background: #1C2A44 !important;
+  color: #8FA3BB !important;
+  border-color: rgba(255,255,255,.08) !important;
+}
+body.dark .filter-pill.active {
+  background: var(--blue) !important;
+  color: #fff !important;
+}
+
+/* Modal */
+body.dark .modal-box {
+  background: #162035 !important;
+  color: #E8EFF8 !important;
+}
+body.dark .modal-box .form-label { color: #8FA3BB !important; }
+
+/* Stat row links */
+body.dark .stat-row-link:hover { background: #1C2A44 !important; }
+
+/* Tab buttons */
+body.dark .tab-btn { color: #556880 !important; }
+body.dark .tab-btn.active { background: #1C2A44 !important; color: #60A5FA !important; }
+body.dark .tabs-wrap { background: #0D1526 !important; }
+
+/* KPI sub text */
+body.dark .kpi-sub { color: #556880 !important; }
+body.dark .kpi-label { color: #8FA3BB !important; }
+
+/* Notif cards */
+body.dark .notif-item { background: #162035 !important; border-color: rgba(255,255,255,.06) !important; }
+body.dark .notif-item.unread { background: #1E3A5F !important; border-color: #1D4ED8 !important; }
+body.dark .notif-name { color: #E8EFF8 !important; }
+body.dark .notif-meta { color: #8FA3BB !important; }
+
+/* Prog bar track */
+body.dark .prog-track { background: rgba(255,255,255,.06) !important; }
+
+/* Emp card / lic card */
+body.dark .emp-card,
+body.dark .lic-card { background: #162035 !important; }
+body.dark .emp-name { color: #E8EFF8 !important; }
+body.dark .emp-id { color: #556880 !important; }
+
+/* info grid */
+body.dark .info-label { color: #556880 !important; }
+body.dark .info-val { color: #CBD5E1 !important; }
+
+/* Back button */
+body.dark .back-btn { color: #60A5FA !important; }
+
+/* Spinner text */
+body.dark .spinner-text { color: #556880 !important; }
+
+/* Empty state */
+body.dark .empty-text { color: #556880 !important; }
+
+/* Legend */
+body.dark .legend-item { color: #8FA3BB !important; }
+
+/* Alert row text */
+body.dark .alert-name { color: #E8EFF8 !important; }
+body.dark .alert-sub { color: #8FA3BB !important; }
+
 /* ── Scrollbar ─────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
