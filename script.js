@@ -650,8 +650,10 @@ function editLicModal(licId, empId, licType, licNo, expiryDate) {
       <div style="font-size:11px;color:var(--text-muted);margin-top:3px">รูปแบบ: วัน/เดือน/ปี ค.ศ. เช่น 10/06/2031</div>
     </div>
     <input type="hidden" id="ml-lictype" value="${licType}">
+    <input type="hidden" id="ml-licid"   value="${licId}">
+    <input type="hidden" id="ml-empid"   value="${empId}">
     <div style="display:flex;gap:8px;margin-top:16px">
-      <button class="btn btn-primary" style="flex:1" onclick="submitLic('${licId}','${empId}')">💾 บันทึก</button>
+      <button class="btn btn-primary" style="flex:1" onclick="submitLic()">💾 บันทึก</button>
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-lic')">ยกเลิก</button>
     </div>`);
 }
@@ -676,48 +678,55 @@ function formatDateDisplay(isoStr) {
   return `📅 ${d}/${m}/${y}`;
 }
 
-async function submitLic(licId, empId) {
-  const licNo = $('ml-licno').value.trim();
-
-  // รับค่าจาก date picker ก่อน ถ้าว่างให้ลอง text input
-  let expiry = $('ml-expiry')?.value || '';
-  if (!expiry) {
-    const textVal = $('ml-expiry-text')?.value?.trim() || '';
-    const m = textVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) expiry = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  }
-
-  if (!expiry) {
-    showToast('⚠️ กรุณาระบุวันหมดอายุ (DD/MM/YYYY)');
-    document.getElementById('ml-expiry-text')?.focus();
-    return;
-  }
-
-  // ตรวจ format ว่าถูกต้อง
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
-    showToast('⚠️ รูปแบบวันที่ไม่ถูกต้อง');
-    return;
-  }
-
+async function submitLic() {
   try {
+    const licId   = document.getElementById('ml-licid')   ? document.getElementById('ml-licid').value.trim()   : '';
+    const empId   = document.getElementById('ml-empid')   ? document.getElementById('ml-empid').value.trim()   : '';
+    const licNo   = document.getElementById('ml-licno')   ? document.getElementById('ml-licno').value.trim()   : '';
+    const licType = document.getElementById('ml-lictype') ? document.getElementById('ml-lictype').value.trim() : '';
+    let expiry    = document.getElementById('ml-expiry')  ? document.getElementById('ml-expiry').value  : '';
+
+    if (!licId || !empId) { alert('ข้อมูลไม่ครบ กรุณาปิดแล้วเปิด modal ใหม่'); return; }
+
+    // fallback: ถ้า date picker ว่าง ลองอ่าน text field
+    if (!expiry) {
+      const txt = document.getElementById('ml-expiry-text') ? document.getElementById('ml-expiry-text').value.trim() : '';
+      if (txt) {
+        // แปลง DD/MM/YYYY → YYYY-MM-DD
+        const parts = txt.split('/');
+        if (parts.length === 3 && parts[2].length === 4) {
+          expiry = parts[2] + '-' + parts[1].padStart(2,'0') + '-' + parts[0].padStart(2,'0');
+        }
+      }
+    }
+
+    if (!expiry) {
+      alert('กรุณาระบุวันหมดอายุ');
+      return;
+    }
+    if (!licType) {
+      alert('ไม่พบประเภทใบขับขี่ กรุณาปิดแล้วเปิดใหม่');
+      return;
+    }
+
     showToast('⏳ กำลังบันทึก...');
-    const licType = $('ml-lictype')?.value || '';
-    await api('licenses.upsert', {
-      license_id: licId,
-      employee_id: empId,
+
+    const result = await api('licenses.upsert', {
+      license_id:     licId,
+      employee_id:    empId,
       license_number: licNo,
-      expiry_date: expiry,
-      license_type: licType,
+      expiry_date:    expiry,
+      license_type:   licType,
     });
+
     clearCache();
     closeModal('modal-lic');
-    showToast('✅ บันทึกสำเร็จ! วันหมดอายุใหม่: ' + fdate(expiry));
-    openEmployee(empId);
+    showToast('✅ บันทึกสำเร็จ');
+    setTimeout(() => openEmployee(empId), 300);
+
   } catch(e) {
     console.error('submitLic error:', e);
-    showToast('❌ ' + e.message);
-    // fallback alert ถ้า toast ไม่แสดง
-    alert('บันทึกไม่สำเร็จ: ' + e.message);
+    alert('บันทึกไม่สำเร็จ: ' + (e.message || e));
   }
 }
 
