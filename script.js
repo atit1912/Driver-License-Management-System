@@ -612,31 +612,107 @@ async function sendReminder(empId) {
 
 // ─── LICENSE EDIT MODAL ────────────────────────────────────────────────────
 function editLicModal(licId, empId, licType, licNo, expiryDate) {
+  // แปลง expiryDate → YYYY-MM-DD สำหรับ date input
   let dateVal = '';
-  if (expiryDate && expiryDate !== 'undefined') {
-    try { dateVal = expiryDate.includes('T') ? expiryDate.split('T')[0] : expiryDate.match(/\d{4}-\d{2}-\d{2}/) ? expiryDate : ''; } catch {}
+  let displayDate = '';
+  if (expiryDate && expiryDate !== 'undefined' && expiryDate !== '') {
+    try {
+      let d;
+      if (expiryDate.includes('T')) d = expiryDate.split('T')[0];
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) d = expiryDate;
+      else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(expiryDate)) {
+        const [dd,mm,yy] = expiryDate.split('/');
+        d = `${yy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+      }
+      if (d) { dateVal = d; displayDate = fdate(d); }
+    } catch {}
   }
+
   showModal('modal-lic', `✏️ แก้ไขใบขับขี่<br><span style="font-size:12px;color:var(--text-muted);font-weight:400">${licType}</span>`, `
-    <div class="form-group"><div class="form-label">เลขที่ใบขับขี่</div>
-      <input class="form-input" id="ml-licno" value="${licNo||''}" placeholder="เลขที่ใบขับขี่"></div>
-    <div class="form-group"><div class="form-label">วันหมดอายุ</div>
-      <input class="form-input" type="date" id="ml-expiry" value="${dateVal}"></div>
+    <div class="form-group">
+      <div class="form-label">เลขที่ใบขับขี่</div>
+      <input class="form-input" id="ml-licno" value="${licNo||''}" placeholder="เลขที่ใบขับขี่">
+    </div>
+    <div class="form-group">
+      <div class="form-label">วันหมดอายุใหม่</div>
+      <input class="form-input" type="date" id="ml-expiry" value="${dateVal}"
+        style="width:100%;font-size:16px"
+        oninput="document.getElementById('ml-expiry-display').textContent=this.value?formatDateDisplay(this.value):''">
+      <div id="ml-expiry-display" style="font-size:12px;color:var(--text-secondary);margin-top:4px;min-height:18px">
+        ${displayDate ? '📅 ' + displayDate : ''}
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">หรือพิมพ์วันที่ตรงๆ (DD/MM/YYYY)</div>
+      <input class="form-input" id="ml-expiry-text" placeholder="เช่น 10/06/2031"
+        value="${displayDate}"
+        oninput="syncDateFromText(this.value)">
+      <div style="font-size:11px;color:var(--text-muted);margin-top:3px">รูปแบบ: วัน/เดือน/ปี ค.ศ. เช่น 10/06/2031</div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-primary" style="flex:1" onclick="submitLic('${licId}','${empId}')">💾 บันทึก</button>
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-lic')">ยกเลิก</button>
     </div>`);
 }
 
+// sync date picker จาก text input
+function syncDateFromText(val) {
+  if (!val) return;
+  const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const iso = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    const picker = document.getElementById('ml-expiry');
+    if (picker) picker.value = iso;
+    const disp = document.getElementById('ml-expiry-display');
+    if (disp) disp.textContent = '📅 ' + val;
+  }
+}
+
+// format date สำหรับ display ใน oninput
+function formatDateDisplay(isoStr) {
+  if (!isoStr) return '';
+  const [y,m,d] = isoStr.split('-');
+  return `📅 ${d}/${m}/${y}`;
+}
+
 async function submitLic(licId, empId) {
   const licNo = $('ml-licno').value.trim();
-  const expiry = $('ml-expiry').value;
-  if (!expiry) { showToast('กรุณาเลือกวันหมดอายุ'); return; }
+
+  // รับค่าจาก date picker ก่อน ถ้าว่างให้ลอง text input
+  let expiry = $('ml-expiry')?.value || '';
+  if (!expiry) {
+    const textVal = $('ml-expiry-text')?.value?.trim() || '';
+    const m = textVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) expiry = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+
+  if (!expiry) {
+    showToast('⚠️ กรุณาระบุวันหมดอายุ (DD/MM/YYYY)');
+    document.getElementById('ml-expiry-text')?.focus();
+    return;
+  }
+
+  // ตรวจ format ว่าถูกต้อง
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+    showToast('⚠️ รูปแบบวันที่ไม่ถูกต้อง');
+    return;
+  }
+
   try {
-    await api('licenses.upsert', { license_id: licId, employee_id: empId, license_number: licNo, expiry_date: expiry });
-    clearCache(); closeModal('modal-lic');
-    showToast('✅ บันทึกสำเร็จ');
+    showToast('⏳ กำลังบันทึก...');
+    await api('licenses.upsert', {
+      license_id: licId,
+      employee_id: empId,
+      license_number: licNo,
+      expiry_date: expiry,
+    });
+    clearCache();
+    closeModal('modal-lic');
+    showToast('✅ บันทึกสำเร็จ! วันหมดอายุใหม่: ' + fdate(expiry));
     openEmployee(empId);
-  } catch(e) { showToast('❌ ' + e.message); }
+  } catch(e) {
+    showToast('❌ ' + e.message);
+  }
 }
 
 // ─── TRAINING MODALS ───────────────────────────────────────────────────────
