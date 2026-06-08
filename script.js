@@ -359,15 +359,20 @@ function renderCenterBars(centers, el) {
 window._donutData = {};
 function switchDonut(type) {
   document.querySelectorAll('#donut-tabs .tab-btn').forEach((b,i)=>b.classList.toggle('active',['all','corp','gov'][i]===type));
-  const data = type==='corp' ? (window._donutData.corp || window._donutData.all)
-             : type==='gov'  ? (window._donutData.gov  || window._donutData.all)
-             : window._donutData.all;
+  // ดึง data ตาม type โดยไม่ fallback ไป all (ป้องกัน overwrite)
+  let data;
+  if (type === 'corp')      data = window._donutData.corp || {};
+  else if (type === 'gov')  data = window._donutData.gov  || {};
+  else                      data = window._donutData.all  || {};
   renderDonut(type, data, data);
 }
 
 function renderDonut(type, allData, rawData) {
   if (!allData) return;
-  window._donutData.all = allData;
+  // เก็บแยกตาม type — ไม่ overwrite all ด้วย corp/gov
+  if (type === 'corp') window._donutData.corp = allData;
+  else if (type === 'gov') window._donutData.gov = allData;
+  else window._donutData.all = allData;
   const area = $('donut-area');
   if (!area) return;
 
