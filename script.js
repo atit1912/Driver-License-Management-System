@@ -221,11 +221,20 @@ function renderPage() {
 async function pgDashboard(c) {
   // ถ้ามี dashData แล้ว render skeleton ก่อนแล้ว update
   if (S.dashData && S.centerData) {
+    // sync donut data จาก cache
+    window._donutData.all  = S.dashData.license_status || {};
+    window._donutData.corp = S.dashData.corp_status    || {};
+    window._donutData.gov  = S.dashData.gov_status     || {};
     renderDashContent(c, S.dashData, S.centerData);
     // refresh ใน background
     Promise.all([api('dashboard.summary'), api('dashboard.centerStats')])
-      .then(([sum, centers]) => { S.dashData=sum; S.centerData=centers; renderDashContent(c, sum, centers); })
-      .catch(()=>{});
+      .then(([sum, centers]) => {
+        S.dashData=sum; S.centerData=centers;
+        window._donutData.all  = sum.license_status || {};
+        window._donutData.corp = sum.corp_status    || {};
+        window._donutData.gov  = sum.gov_status     || {};
+        renderDashContent(c, sum, centers);
+      }).catch(()=>{});
     return;
   }
   c.innerHTML = spinner('กำลังโหลด Dashboard...');
@@ -236,6 +245,10 @@ async function pgDashboard(c) {
     ]);
     S.dashData = sum;
     S.centerData = centers;
+    // เก็บ corp/gov data สำหรับ donut
+    window._donutData.all  = sum.license_status || {};
+    window._donutData.corp = sum.corp_status    || {};
+    window._donutData.gov  = sum.gov_status     || {};
     renderDashContent(c, sum, centers);
   } catch(e) {
     c.innerHTML = `<div class="card card-p" style="color:var(--red);font-size:13px">❌ ${e.message}</div>`;
@@ -346,7 +359,10 @@ function renderCenterBars(centers, el) {
 window._donutData = {};
 function switchDonut(type) {
   document.querySelectorAll('#donut-tabs .tab-btn').forEach((b,i)=>b.classList.toggle('active',['all','corp','gov'][i]===type));
-  renderDonut(type, window._donutData.all, window._donutData.all);
+  const data = type==='corp' ? (window._donutData.corp || window._donutData.all)
+             : type==='gov'  ? (window._donutData.gov  || window._donutData.all)
+             : window._donutData.all;
+  renderDonut(type, data, data);
 }
 
 function renderDonut(type, allData, rawData) {
@@ -1545,6 +1561,10 @@ function init() {
       S.dashData    = sum;
       S.centerData  = centers;
       S.empList     = emps;
+      // sync donut data
+      window._donutData.all  = sum.license_status || {};
+      window._donutData.corp = sum.corp_status    || {};
+      window._donutData.gov  = sum.gov_status     || {};
       // อัพเดต notification badge
       const unread = sum?.unread_notifications || 0;
       const nb = $('notif-badge');
