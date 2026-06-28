@@ -17,7 +17,6 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 // ─── Firebase Config ────────────────────────────────────────
 const firebaseConfig = {
@@ -28,14 +27,11 @@ const firebaseConfig = {
   messagingSenderId: "427087001104",
   appId: "1:427087001104:web:4c683a3257c2759e5e3c95"
 };
-const app     = initializeApp(firebaseConfig);
-const db      = getFirestore(app);
-const storage = getStorage(app);
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
 
-// ─── Expose to global scope ──────────────────────────────────
 window._db = db;
-window._storage = storage;
-window._fbModules = { collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp, ref, uploadBytes, getDownloadURL };
+window._fbModules = { collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp };
 
 // ─── Boot ────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => { renderNav(); renderPage(); setTimeout(preloadData, 400); });
@@ -288,7 +284,6 @@ const _cache={}, _TTL=10*60*1000;
 
 // ─── WAIT FOR FIREBASE ───────────────────────────────────────
 function getDB(){ return window._db; }
-function getStor(){ return window._storage; }
 function fb(){ return window._fbModules; }
 
 // ─── UTILS ───────────────────────────────────────────────────
@@ -625,18 +620,10 @@ function pgDetail(el,{emp,lics,trns}){
         <div><div class="ilabel">อัพเดตล่าสุด</div><div class="ival">${fdate(l.updated_at)}</div></div>
       </div>
 
-      <!-- 🆕 รูปใบขับขี่ -->
-      <div style="margin-top:14px">
-        <div class="ilabel" style="margin-bottom:6px">รูปใบขับขี่เครือฯ</div>
-        <div class="photo-box" id="photo-${l.id}" onclick="triggerPhotoUpload('${l.id}','${empId}')">
-          ${l.photo_url?`<img src="${l.photo_url}" alt="ใบขับขี่">`:`<span style="font-size:28px">📷</span><div class="ph-label">แตะเพื่ออัปโหลดรูปใบขับขี่<br><span style="font-size:10px;color:#9CA3AF">JPG/PNG ไม่เกิน 5MB</span></div>`}
-        </div>
-        ${l.photo_url?`<div style="display:flex;gap:8px;margin-top:8px">
-          <a href="${l.photo_url}" target="_blank" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:12px;color:#1D4ED8;padding:8px 12px;background:#EFF6FF;border-radius:7px;text-decoration:none;font-weight:500">🔍 ดูรูปเต็ม</a>
-          <button onclick="triggerPhotoUpload('${l.id}','${empId}')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:12px;color:#D97706;padding:8px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">🔄 เปลี่ยนรูป</button>
-        </div>`:''}
-        <input type="file" id="file-${l.id}" accept="image/*" style="display:none" onchange="uploadPhoto(this,'${l.id}','${empId}')">
-      </div>
+      <!-- รูปใบขับขี่ (แสดงเฉพาะถ้ามี) -->
+      ${l.photo_url?`<div style="margin-top:12px">
+        <a href="${l.photo_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;text-decoration:none;font-weight:500">🖼️ ดูรูปใบขับขี่</a>
+      </div>`:''}
 
       <button onclick="editLicense('${l.id}','${empId}','${l.license_type}','${l.license_number||''}','${l._expiryDate?l._expiryDate.toISOString().slice(0,10):''}')"
         style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">✏️ แก้ไขวันหมดอายุ</button>
@@ -692,77 +679,6 @@ function swTab(t){
   document.getElementById('tc-t').style.display=t==='t'?'block':'none';
 }
 function backToList(){empCache._detail=null;renderNav();renderEmpList(document.getElementById('content'));}
-
-// ── PHOTO UPLOAD via GAS (resize ใน browser ก่อน) ──
-function triggerPhotoUpload(licId,empId){
-  document.getElementById('file-'+licId)?.click();
-}
-
-async function uploadPhoto(input,licId,empId){
-  const file=input.files[0];
-  if(!file)return;
-  if(!file.type.startsWith('image/')){alert('❌ กรุณาเลือกไฟล์รูปภาพเท่านั้น');return;}
-
-  const box=document.getElementById('photo-'+licId);
-  if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลัง resize รูป...</div>';
-
-  try{
-    // ── 1. Resize ใน browser ก่อน (เหลือ 800px, JPEG) ──
-    const blob=await resizeImageToBlob(file, 800, 0.82);
-
-    if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลังอัปโหลด...</div>';
-
-    // ── 2. อัปขึ้น Firebase Storage โดยตรง ──
-    const {ref,uploadBytes,getDownloadURL}=fb();
-    const path='licenses/'+empId+'/'+licId+'.jpg';
-    const storageRef=ref(getStor(), path);
-    await uploadBytes(storageRef, blob, {contentType:'image/jpeg'});
-    const url=await getDownloadURL(storageRef);
-
-    // ── 3. บันทึก URL ลง Firestore ──
-    await fsUpdate('licenses',licId,{photo_url:url});
-
-    alert('✅ อัปโหลดรูปสำเร็จ');
-    openEmp(empId);
-  }catch(e){
-    if(box) box.innerHTML='<span style="font-size:28px">📷</span><div class="ph-label">แตะเพื่ออัปโหลดรูปใบขับขี่</div>';
-    alert('❌ '+e.message);
-  }
-}
-
-// ── อ่าน photo_url ปัจจุบันจาก Firestore (ไม่ผ่าน cache) ──
-async function fetchPhotoUrl(licId){
-  try{
-    const {getDoc,doc}=fb();
-    const snap=await getDoc(doc(getDB(),'licenses',licId));
-    if(!snap.exists()) return '';
-    return snap.data().photo_url||'';
-  }catch(e){ return ''; }
-}
-
-// ── Resize image ด้วย Canvas ──
-function resizeImageToBlob(file, maxWidth, quality){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const img=new Image();
-      img.onload=()=>{
-        const scale=Math.min(1, maxWidth/img.width);
-        const w=Math.round(img.width*scale);
-        const h=Math.round(img.height*scale);
-        const canvas=document.createElement('canvas');
-        canvas.width=w; canvas.height=h;
-        const ctx=canvas.getContext('2d');
-        ctx.drawImage(img,0,0,w,h);
-        canvas.toBlob(b=>{ b ? resolve(b) : reject(new Error('resize failed')); }, 'image/jpeg', quality||0.82);
-      };
-      img.onerror=reject;
-      img.src=e.target.result;
-    };
-    reader.onerror=reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 // ── EDIT LICENSE ──
 function editLicense(licId,empId,licType,licNo,expiryDate){
