@@ -708,31 +708,34 @@ async function uploadPhoto(input,licId,empId){
   try{
     // ── Resize ใน browser ก่อนส่ง ──
     const base64=await resizeImage(file, 800, 0.82);
-
     if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลังอัปโหลด...</div>';
 
-    // ── ส่งไป GAS ──
     const gasUrl=window.GAS_PHOTO_URL;
-    if(!gasUrl||gasUrl==='YOUR_NEW_GAS_DEPLOY_URL'){
-      alert('❌ ยังไม่ได้ตั้งค่า GAS_PHOTO_URL ใน index.html');return;
-    }
 
-    const res=await fetch(gasUrl,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        action:'photo.upload',
-        license_id:licId,
-        employee_id:empId,
-        image_base64:base64.split(',')[1],
-        mime_type:'image/jpeg'
-      })
+    // ── ส่งผ่าน URLSearchParams (GAS รองรับ CORS) ──
+    const params=new URLSearchParams();
+    params.append('action','photo.upload');
+    params.append('params', JSON.stringify({
+      license_id:   licId,
+      employee_id:  empId,
+      image_base64: base64.split(',')[1],
+      mime_type:    'image/jpeg'
+    }));
+
+    const res=await fetch(gasUrl, {
+      method:  'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded'},
+      body:    params.toString()
     });
-    const data=await res.json();
+
+    const text=await res.text();
+    let data;
+    try{ data=JSON.parse(text); }catch(e){ throw new Error('GAS response error: '+text.substring(0,100)); }
+
     if(!data.ok) throw new Error(data.message||'Upload failed');
 
     // ── update Firestore local cache ──
-    await fsUpdate('licenses',licId,{photo_url:data.photo_url});
+    await fsUpdate('licenses',licId,{photo_url:data.data.photo_url});
     alert('✅ อัปโหลดรูปสำเร็จ');
     openEmp(empId);
   }catch(e){
