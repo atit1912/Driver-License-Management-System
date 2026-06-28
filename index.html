@@ -17,7 +17,6 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 // ─── Firebase Config ────────────────────────────────────────
 const firebaseConfig = {
@@ -30,12 +29,14 @@ const firebaseConfig = {
 };
 const app  = initializeApp(firebaseConfig);
 const db   = getFirestore(app);
-const storage = getStorage(app);
 
-// ─── Expose to global scope (ใช้กับ onclick ใน HTML) ───────
+// ─── GAS Photo Upload URL ────────────────────────────────────
+// ← ใส่ URL ของ GAS Web App ที่ deploy ใหม่ตรงนี้
+window.GAS_PHOTO_URL = 'YOUR_NEW_GAS_DEPLOY_URL';
+
+// ─── Expose to global scope ──────────────────────────────────
 window._db = db;
-window._storage = storage;
-window._fbModules = { collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp, ref, uploadBytes, getDownloadURL, deleteObject };
+window._fbModules = { collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp };
 
 // ─── Boot ────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => { renderNav(); renderPage(); setTimeout(preloadData, 400); });
@@ -288,7 +289,6 @@ const _cache={}, _TTL=10*60*1000;
 
 // ─── WAIT FOR FIREBASE ───────────────────────────────────────
 function getDB(){ return window._db; }
-function getStorage(){ return window._storage; }
 function fb(){ return window._fbModules; }
 
 // ─── UTILS ───────────────────────────────────────────────────
@@ -693,28 +693,77 @@ function swTab(t){
 }
 function backToList(){empCache._detail=null;renderNav();renderEmpList(document.getElementById('content'));}
 
-// ── PHOTO UPLOAD (Firebase Storage) ──
+// ── PHOTO UPLOAD via GAS (resize ใน browser ก่อน) ──
 function triggerPhotoUpload(licId,empId){
   document.getElementById('file-'+licId)?.click();
 }
+
 async function uploadPhoto(input,licId,empId){
   const file=input.files[0];
   if(!file)return;
-  if(file.size>5*1024*1024){alert('❌ ไฟล์ใหญ่เกิน 5MB');return;}
+  if(!file.type.startsWith('image/')){alert('❌ กรุณาเลือกไฟล์รูปภาพเท่านั้น');return;}
+
   const box=document.getElementById('photo-'+licId);
-  if(box) box.innerHTML='<div class="spin"></div><div class="ph-label">กำลังอัปโหลด...</div>';
+  if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลัง resize รูป...</div>';
+
   try{
-    const {ref,uploadBytes,getDownloadURL}=fb();
-    const st=getStorage();
-    const ext=file.name.split('.').pop();
-    const path=`licenses/${empId}/${licId}.${ext}`;
-    const storageRef=ref(st,path);
-    await uploadBytes(storageRef,file);
-    const url=await getDownloadURL(storageRef);
-    await fsUpdate('licenses',licId,{photo_url:url});
+    // ── Resize ใน browser ก่อนส่ง ──
+    const base64=await resizeImage(file, 800, 0.82);
+
+    if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลังอัปโหลด...</div>';
+
+    // ── ส่งไป GAS ──
+    const gasUrl=window.GAS_PHOTO_URL;
+    if(!gasUrl||gasUrl==='YOUR_NEW_GAS_DEPLOY_URL'){
+      alert('❌ ยังไม่ได้ตั้งค่า GAS_PHOTO_URL ใน index.html');return;
+    }
+
+    const res=await fetch(gasUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        action:'photo.upload',
+        license_id:licId,
+        employee_id:empId,
+        image_base64:base64.split(',')[1],
+        mime_type:'image/jpeg'
+      })
+    });
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.message||'Upload failed');
+
+    // ── update Firestore local cache ──
+    await fsUpdate('licenses',licId,{photo_url:data.photo_url});
     alert('✅ อัปโหลดรูปสำเร็จ');
     openEmp(empId);
-  }catch(e){alert('❌ '+e.message);}
+  }catch(e){
+    if(box) box.innerHTML='<span style="font-size:28px">📷</span><div class="ph-label">แตะเพื่ออัปโหลดรูปใบขับขี่</div>';
+    alert('❌ '+e.message);
+  }
+}
+
+// ── Resize image ด้วย Canvas ──
+function resizeImage(file, maxWidth, quality){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const scale=Math.min(1, maxWidth/img.width);
+        const w=Math.round(img.width*scale);
+        const h=Math.round(img.height*scale);
+        const canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', quality||0.82));
+      };
+      img.onerror=reject;
+      img.src=e.target.result;
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ── EDIT LICENSE ──
@@ -885,7 +934,7 @@ function pgSettings(el){
       <div class="stitle">⚙️ การตั้งค่าระบบ</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${[['🔥 Database','Firebase Firestore','#DCFCE7','#166534'],
-           ['🖼️ File Storage','Firebase Storage','#EFF6FF','#1D4ED8'],
+           ['🖼️ File Storage','Google Drive (รูปใบขับขี่)','#EFF6FF','#1D4ED8'],
            ['🤖 Telegram Bot','เชื่อมต่อแล้ว (GAS)','#F0FDF4','#15803D'],
            ['🔔 แจ้งเตือน 45/30/15/0 วัน','เปิดทั้งหมด','#ECFDF5','#059669']].map(([k,v,bg,c])=>`
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:${bg};border-radius:8px">
@@ -899,7 +948,7 @@ function pgSettings(el){
       <div style="font-size:13px;color:#6B7280;line-height:2">
         DLMS v2.0 — Driver License Management System<br>
         ศูนย์วิจัย 5 แห่ง · พนักงาน 47 คน · ใบขับขี่ 94 ใบ<br>
-        Database: Firebase Firestore · Storage: Firebase Storage<br>
+        Database: Firebase Firestore · Storage: Google Drive<br>
         Notification: Telegram Bot (GAS Trigger)
       </div>
     </div>
