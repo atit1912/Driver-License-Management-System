@@ -31,8 +31,7 @@ const app  = initializeApp(firebaseConfig);
 const db   = getFirestore(app);
 
 // ─── GAS Photo Upload URL ────────────────────────────────────
-// ← ใส่ URL ของ GAS Web App ที่ deploy ใหม่ตรงนี้
-window.GAS_PHOTO_URL = 'YOUR_NEW_GAS_DEPLOY_URL';
+window.GAS_PHOTO_URL = 'https://script.google.com/macros/s/AKfycbxtK-anMghpiAzNHgX-prdvCd__gMs_sywWh39a-uujDuXK8rGde65Kpjq9Ub5OmTM/exec';
 
 // ─── Expose to global scope ──────────────────────────────────
 window._db = db;
