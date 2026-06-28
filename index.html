@@ -17,6 +17,7 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 // ─── Firebase Config ────────────────────────────────────────
 const firebaseConfig = {
@@ -27,15 +28,14 @@ const firebaseConfig = {
   messagingSenderId: "427087001104",
   appId: "1:427087001104:web:4c683a3257c2759e5e3c95"
 };
-const app  = initializeApp(firebaseConfig);
-const db   = getFirestore(app);
-
-// ─── GAS Photo Upload URL ────────────────────────────────────
-window.GAS_PHOTO_URL = 'https://script.google.com/macros/s/AKfycbxtK-anMghpiAzNHgX-prdvCd__gMs_sywWh39a-uujDuXK8rGde65Kpjq9Ub5OmTM/exec';
+const app     = initializeApp(firebaseConfig);
+const db      = getFirestore(app);
+const storage = getStorage(app);
 
 // ─── Expose to global scope ──────────────────────────────────
 window._db = db;
-window._fbModules = { collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp };
+window._storage = storage;
+window._fbModules = { collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp, ref, uploadBytes, getDownloadURL };
 
 // ─── Boot ────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => { renderNav(); renderPage(); setTimeout(preloadData, 400); });
@@ -288,6 +288,7 @@ const _cache={}, _TTL=10*60*1000;
 
 // ─── WAIT FOR FIREBASE ───────────────────────────────────────
 function getDB(){ return window._db; }
+function getStor(){ return window._storage; }
 function fb(){ return window._fbModules; }
 
 // ─── UTILS ───────────────────────────────────────────────────
@@ -706,43 +707,21 @@ async function uploadPhoto(input,licId,empId){
   if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลัง resize รูป...</div>';
 
   try{
-    // ── 1. Resize ใน browser ──
-    const base64=await resizeImage(file, 800, 0.82);
+    // ── 1. Resize ใน browser ก่อน (เหลือ 800px, JPEG) ──
+    const blob=await resizeImageToBlob(file, 800, 0.82);
+
     if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลังอัปโหลด...</div>';
 
-    // ── 2. เก็บ photo_url เดิมไว้เทียบ ──
-    const oldUrl=await fetchPhotoUrl(licId);
+    // ── 2. อัปขึ้น Firebase Storage โดยตรง ──
+    const {ref,uploadBytes,getDownloadURL}=fb();
+    const path='licenses/'+empId+'/'+licId+'.jpg';
+    const storageRef=ref(getStor(), path);
+    await uploadBytes(storageRef, blob, {contentType:'image/jpeg'});
+    const url=await getDownloadURL(storageRef);
 
-    // ── 3. ส่งไป GAS แบบ no-cors (GAS เก็บ Drive + update Firestore ให้เอง) ──
-    const params=new URLSearchParams();
-    params.append('action','photo.upload');
-    params.append('params', JSON.stringify({
-      license_id:   licId,
-      employee_id:  empId,
-      image_base64: base64.split(',')[1],
-      mime_type:    'image/jpeg'
-    }));
+    // ── 3. บันทึก URL ลง Firestore ──
+    await fsUpdate('licenses',licId,{photo_url:url});
 
-    await fetch(window.GAS_PHOTO_URL, {
-      method: 'POST',
-      mode:   'no-cors',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:   params.toString()
-    });
-
-    // ── 4. Poll Firestore จน photo_url เปลี่ยน (สูงสุด ~20 วิ) ──
-    if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลังบันทึก...</div>';
-    let newUrl=null;
-    for(let i=0;i<13;i++){
-      await new Promise(r=>setTimeout(r,1500));
-      const u=await fetchPhotoUrl(licId);
-      if(u && u!==oldUrl){ newUrl=u; break; }
-    }
-
-    if(!newUrl) throw new Error('อัปโหลดใช้เวลานานเกินไป — ลองกดรีเฟรชหน้าดูอีกครั้ง');
-
-    // ── 5. clear cache แล้วโหลดใหม่ ──
-    Object.keys(_cache).forEach(k=>{ if(k.indexOf('licenses')>=0||k.indexOf('col:')>=0) delete _cache[k]; });
     alert('✅ อัปโหลดรูปสำเร็จ');
     openEmp(empId);
   }catch(e){
@@ -762,7 +741,7 @@ async function fetchPhotoUrl(licId){
 }
 
 // ── Resize image ด้วย Canvas ──
-function resizeImage(file, maxWidth, quality){
+function resizeImageToBlob(file, maxWidth, quality){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onload=e=>{
@@ -775,7 +754,7 @@ function resizeImage(file, maxWidth, quality){
         canvas.width=w; canvas.height=h;
         const ctx=canvas.getContext('2d');
         ctx.drawImage(img,0,0,w,h);
-        resolve(canvas.toDataURL('image/jpeg', quality||0.82));
+        canvas.toBlob(b=>{ b ? resolve(b) : reject(new Error('resize failed')); }, 'image/jpeg', quality||0.82);
       };
       img.onerror=reject;
       img.src=e.target.result;
