@@ -706,13 +706,14 @@ async function uploadPhoto(input,licId,empId){
   if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลัง resize รูป...</div>';
 
   try{
-    // ── Resize ใน browser ก่อนส่ง ──
+    // ── 1. Resize ใน browser ──
     const base64=await resizeImage(file, 800, 0.82);
     if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลังอัปโหลด...</div>';
 
-    const gasUrl=window.GAS_PHOTO_URL;
+    // ── 2. เก็บ photo_url เดิมไว้เทียบ ──
+    const oldUrl=await fetchPhotoUrl(licId);
 
-    // ── ส่งผ่าน URLSearchParams (GAS รองรับ CORS) ──
+    // ── 3. ส่งไป GAS แบบ no-cors (GAS เก็บ Drive + update Firestore ให้เอง) ──
     const params=new URLSearchParams();
     params.append('action','photo.upload');
     params.append('params', JSON.stringify({
@@ -722,26 +723,42 @@ async function uploadPhoto(input,licId,empId){
       mime_type:    'image/jpeg'
     }));
 
-    const res=await fetch(gasUrl, {
-      method:  'POST',
-      headers: {'Content-Type':'application/x-www-form-urlencoded'},
-      body:    params.toString()
+    await fetch(window.GAS_PHOTO_URL, {
+      method: 'POST',
+      mode:   'no-cors',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:   params.toString()
     });
 
-    const text=await res.text();
-    let data;
-    try{ data=JSON.parse(text); }catch(e){ throw new Error('GAS response error: '+text.substring(0,100)); }
+    // ── 4. Poll Firestore จน photo_url เปลี่ยน (สูงสุด ~20 วิ) ──
+    if(box) box.innerHTML='<div class="spin"></div><div class="ph-label" style="margin-top:8px">กำลังบันทึก...</div>';
+    let newUrl=null;
+    for(let i=0;i<13;i++){
+      await new Promise(r=>setTimeout(r,1500));
+      const u=await fetchPhotoUrl(licId);
+      if(u && u!==oldUrl){ newUrl=u; break; }
+    }
 
-    if(!data.ok) throw new Error(data.message||'Upload failed');
+    if(!newUrl) throw new Error('อัปโหลดใช้เวลานานเกินไป — ลองกดรีเฟรชหน้าดูอีกครั้ง');
 
-    // ── update Firestore local cache ──
-    await fsUpdate('licenses',licId,{photo_url:data.data.photo_url});
+    // ── 5. clear cache แล้วโหลดใหม่ ──
+    Object.keys(_cache).forEach(k=>{ if(k.indexOf('licenses')>=0||k.indexOf('col:')>=0) delete _cache[k]; });
     alert('✅ อัปโหลดรูปสำเร็จ');
     openEmp(empId);
   }catch(e){
     if(box) box.innerHTML='<span style="font-size:28px">📷</span><div class="ph-label">แตะเพื่ออัปโหลดรูปใบขับขี่</div>';
     alert('❌ '+e.message);
   }
+}
+
+// ── อ่าน photo_url ปัจจุบันจาก Firestore (ไม่ผ่าน cache) ──
+async function fetchPhotoUrl(licId){
+  try{
+    const {getDoc,doc}=fb();
+    const snap=await getDoc(doc(getDB(),'licenses',licId));
+    if(!snap.exists()) return '';
+    return snap.data().photo_url||'';
+  }catch(e){ return ''; }
 }
 
 // ── Resize image ด้วย Canvas ──
