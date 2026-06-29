@@ -471,7 +471,13 @@ async function pgDashboard(el){
         return{...l,employee_name:emp?.full_name||l.employee_id,research_center:emp?.research_center||l.research_center};
       });
 
-    // centerBars
+    // แยก corp / gov
+    const corpStatus={normal:0,'45d':0,'30d':0,'15d':0,expired:0};
+    const govStatus={normal:0,'45d':0,'30d':0,'15d':0,expired:0};
+    lics.forEach(l=>{
+      if(l.license_type==='ใบขับขี่เครือฯ') corpStatus[l.expiry_status]=(corpStatus[l.expiry_status]||0)+1;
+      else govStatus[l.expiry_status]=(govStatus[l.expiry_status]||0)+1;
+    });
     const pw=(n,tot)=>Math.round(n/(tot||1)*100)+'%';
     const bars=centers.map(c=>`<div class="cbar-row">
       <div class="cbar-label">${CS[c.center]||c.center}</div>
@@ -499,7 +505,17 @@ async function pgDashboard(el){
         </div>
       </div>
       <div class="card card-p">
-        <div class="stitle">🪪 สัดส่วนสถานะใบขับขี่</div>
+        <div class="stitle">🏢 ใบขับขี่เครือฯ</div>
+        ${donut(corpStatus)}
+      </div>
+    </div>
+    <div class="chart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="card card-p">
+        <div class="stitle">🏛️ ใบขับขี่ราชการ</div>
+        ${donut(govStatus)}
+      </div>
+      <div class="card card-p" style="display:flex;flex-direction:column;justify-content:center">
+        <div class="stitle">📊 รวมทั้งหมด</div>
         ${donut(licStatus)}
       </div>
     </div>
