@@ -11,6 +11,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="DLMS">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <meta name="theme-color" content="#1a2942">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -957,6 +959,10 @@ async function pgExecutive(el){
     const warn45=lics.filter(l=>l.days_remaining>30&&l.days_remaining<=45);
 
     el.innerHTML=`
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn-primary" id="pdf-btn" onclick="downloadExecutivePDF()">📄 ดาวน์โหลด PDF สรุปผู้บริหาร</button>
+    </div>
+    <div id="exec-report" style="background:#fff;padding:6px;border-radius:8px">
     <div style="display:flex;flex-direction:column;gap:16px">
       <div class="card card-p" style="background:linear-gradient(135deg,#1a2942,#1D4ED8);border:none">
         <div style="color:#fff">
@@ -1011,8 +1017,50 @@ async function pgExecutive(el){
           </table>
         </div>
       </div>
+      <div style="text-align:center;font-size:10px;color:#9CA3AF;padding:4px 0">
+        DLMS — Driver License Management System &nbsp;|&nbsp; สร้างรายงานเมื่อ ${new Date().toLocaleString('th-TH')}
+      </div>
+    </div>
     </div>`;
   }catch(e){el.innerHTML=err(e.message);}
+}
+
+// ── PDF Export: capture #exec-report เป็นภาพแล้วประกอบเป็น PDF (รองรับหลายหน้า) ──
+async function downloadExecutivePDF(){
+  const btn=document.getElementById('pdf-btn');
+  const target=document.getElementById('exec-report');
+  if(!target || typeof html2canvas==='undefined' || typeof window.jspdf==='undefined'){
+    alert('❌ ไลบรารีสร้าง PDF โหลดไม่สำเร็จ กรุณาลองใหม่');return;
+  }
+  const originalText=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML='⏳ กำลังสร้าง PDF...';
+  try{
+    const canvas=await html2canvas(target,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+    const imgData=canvas.toDataURL('image/png');
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF('p','mm','a4');
+    const pageWidth=pdf.internal.pageSize.getWidth();
+    const pageHeight=pdf.internal.pageSize.getHeight();
+    const imgWidth=pageWidth;
+    const imgHeight=canvas.height*imgWidth/canvas.width;
+    let heightLeft=imgHeight;
+    let position=0;
+    pdf.addImage(imgData,'PNG',0,position,imgWidth,imgHeight);
+    heightLeft-=pageHeight;
+    while(heightLeft>0){
+      position=heightLeft-imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData,'PNG',0,position,imgWidth,imgHeight);
+      heightLeft-=pageHeight;
+    }
+    pdf.save(`DLMS_สรุปผู้บริหาร_${new Date().toISOString().slice(0,10)}.pdf`);
+  }catch(e){
+    alert('❌ สร้าง PDF ไม่สำเร็จ: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML=originalText;
+  }
 }
 
 // ── DARK MODE ──
