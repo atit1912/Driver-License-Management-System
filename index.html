@@ -79,7 +79,17 @@ body.dark .btn-ghost:hover{background:#334155}
 body.dark .back-btn{color:#60A5FA}
 body.dark .photo-box{background:#0F172A;border-color:#334155}
 body.dark .photo-box .ph-label{color:#94A3B8}
-body.dark .alert-row{color:#E2E8F0}
+.alert-row,.alert-row *{color:#1a1a1a}
+.page-title-text{color:#111827}
+body.dark .page-title-text{color:#F1F5F9}
+.ham-icon{color:#6B7280}
+body.dark .ham-icon{color:#94A3B8}
+.today-label-text{color:#9CA3AF}
+body.dark .today-label-text{color:#64748B}
+.report-count-text{color:#374151}
+body.dark .report-count-text{color:#CBD5E1}
+.legend-text{color:#6B7280}
+body.dark .legend-text{color:#94A3B8}
 
 /* ── Layout ── */
 .app{display:flex;min-height:100vh}
@@ -246,11 +256,11 @@ nav.snav{flex:1;padding:12px 8px;overflow-y:auto}
 <div class="main">
   <header class="topbar">
     <div style="display:flex;align-items:center;gap:12px">
-      <button onclick="toggleSidebar()" style="border:none;background:none;font-size:22px;cursor:pointer;color:#6B7280;padding:0;line-height:1;display:none" id="ham-btn">☰</button>
-      <div id="page-title" style="font-size:17px;font-weight:700;color:#111827"></div>
+      <button onclick="toggleSidebar()" style="border:none;background:none;font-size:22px;cursor:pointer;padding:0;line-height:1;display:none" class="ham-icon" id="ham-btn">☰</button>
+      <div id="page-title" class="page-title-text" style="font-size:17px;font-weight:700"></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
-      <div style="font-size:12px;color:#9CA3AF" id="today-label"></div>
+      <div style="font-size:12px" class="today-label-text" id="today-label"></div>
       <button onclick="toggleDark()" id="dark-btn" style="border:none;background:none;font-size:20px;cursor:pointer;line-height:1;padding:0" title="Dark mode">🌙</button>
     </div>
   </header>
@@ -282,7 +292,7 @@ const SC={
 };
 
 // ─── STATE ───────────────────────────────────────────────────
-let page='dashboard', empList=[], empCache={}, reportData=null, currentReportType='', activeStatus='', sidebarOpen=false;
+let page='dashboard', empList=[], empCache={}, reportData=null, currentReportType='', activeStatus='', sidebarOpen=false, _pdfPreviewCanvas=null;
 const _cache={}, _TTL=10*60*1000;
 
 // ─── WAIT FOR FIREBASE ───────────────────────────────────────
@@ -506,7 +516,7 @@ async function pgDashboard(el){
         <div class="stitle">📊 สถานะตามศูนย์วิจัย</div>
         <div class="cbar-wrap">${bars}</div>
         <div style="display:flex;gap:14px;margin-top:12px;flex-wrap:wrap">
-          ${['#16A34A:ปกติ','#D97706:ใกล้หมด','#DC2626:หมดแล้ว'].map(x=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6B7280"><div style="width:8px;height:8px;border-radius:2px;background:${x.split(':')[0]}"></div>${x.split(':')[1]}</div>`).join('')}
+          ${['#16A34A:ปกติ','#D97706:ใกล้หมด','#DC2626:หมดแล้ว'].map(x=>`<div class="legend-text" style="display:flex;align-items:center;gap:5px;font-size:11px"><div style="width:8px;height:8px;border-radius:2px;background:${x.split(':')[0]}"></div>${x.split(':')[1]}</div>`).join('')}
         </div>
       </div>
       <div class="card card-p">
@@ -847,7 +857,7 @@ async function loadReport(type){
     const thLabel={full_name:'ชื่อ-นามสกุล',research_center:'ศูนย์วิจัย',license_type:'ประเภท',license_number:'เลขใบขับขี่',expiry_date:'หมดอายุ',days_remaining:'วันคงเหลือ',status:'สถานะ',corp_license_no:'เลขใบเครือฯ',corp_expiry:'หมดอายุเครือฯ',corp_status:'สถานะเครือฯ',govt_license_no:'เลขใบราชการ',govt_expiry:'หมดอายุราชการ',govt_status:'สถานะราชการ',ลำดับ:'ลำดับ',ชื่อ_นามสกุล:'ชื่อ-นามสกุล',บริษัท:'บริษัท',email:'e-mail',เลขที่ใบขับขี่เครือฯ:'เลขที่ใบขับขี่เครือฯ',วันหมดอายุ:'วันหมดอายุ',สถานะ:'สถานะ'};
     el.innerHTML=`<div class="card card-p">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:13px;font-weight:600;color:#374151">พบ ${data.length} รายการ</div>
+        <div class="report-count-text" style="font-size:13px;font-weight:600">พบ ${data.length} รายการ</div>
         <div style="display:flex;gap:8px">
           ${type==='corp_urgent'?`<button class="btn-primary" style="background:#16A34A" onclick="dlXLSX()">📊 ดาวน์โหลด Excel</button>`:''}
           <button class="btn-primary" onclick="dlCSV()">⬇️ ดาวน์โหลด CSV</button>
@@ -1035,32 +1045,74 @@ async function downloadExecutivePDF(){
   const originalText=btn.innerHTML;
   btn.disabled=true;
   btn.innerHTML='⏳ กำลังสร้าง PDF...';
+
+  // ── สร้าง clone ที่ความกว้างคงที่แบบ desktop เสมอ (ป้องกันตารางถูกตัดตอนเปิดจากมือถือ) ──
+  const REPORT_WIDTH=820;
+  const wrapper=document.createElement('div');
+  wrapper.style.cssText=`position:fixed;top:0;left:-99999px;width:${REPORT_WIDTH}px;background:#fff;padding:14px;z-index:-1`;
+  const clone=target.cloneNode(true);
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+
   try{
-    const canvas=await html2canvas(target,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-    const imgData=canvas.toDataURL('image/png');
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF('p','mm','a4');
-    const pageWidth=pdf.internal.pageSize.getWidth();
-    const pageHeight=pdf.internal.pageSize.getHeight();
-    const imgWidth=pageWidth;
-    const imgHeight=canvas.height*imgWidth/canvas.width;
-    let heightLeft=imgHeight;
-    let position=0;
-    pdf.addImage(imgData,'PNG',0,position,imgWidth,imgHeight);
-    heightLeft-=pageHeight;
-    while(heightLeft>0){
-      position=heightLeft-imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData,'PNG',0,position,imgWidth,imgHeight);
-      heightLeft-=pageHeight;
-    }
-    pdf.save(`DLMS_สรุปผู้บริหาร_${new Date().toISOString().slice(0,10)}.pdf`);
+    await new Promise(r=>setTimeout(r,80)); // รอ layout/font settle
+    const canvas=await html2canvas(clone,{scale:1.5,useCORS:true,backgroundColor:'#ffffff'});
+    document.body.removeChild(wrapper);
+
+    // ── บีบอัดเป็น JPEG แทน PNG เพื่อลดขนาดไฟล์ ──
+    const imgData=canvas.toDataURL('image/jpeg',0.85);
+    _pdfPreviewCanvas={imgData,w:canvas.width,h:canvas.height};
+    showPdfPreview(imgData);
   }catch(e){
+    if(wrapper.parentNode) document.body.removeChild(wrapper);
     alert('❌ สร้าง PDF ไม่สำเร็จ: '+e.message);
   }finally{
     btn.disabled=false;
     btn.innerHTML=originalText;
   }
+}
+
+// ── แสดงตัวอย่างก่อนดาวน์โหลดจริง ──
+function showPdfPreview(imgData){
+  const modal=document.createElement('div');
+  modal.id='pdf-preview-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML=`
+    <div style="background:#fff;border-radius:14px;padding:16px;max-width:520px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:#111827">📄 ตัวอย่างรายงาน PDF</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:12px">ตรวจสอบความเรียบร้อยก่อนดาวน์โหลด</div>
+      <div style="flex:1;overflow-y:auto;border:1px solid #E8ECF0;border-radius:8px;background:#F0F2F5;padding:8px">
+        <img src="${imgData}" style="width:100%;display:block;border-radius:4px">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="confirmDownloadPdf()" style="flex:1;padding:12px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600">⬇️ ดาวน์โหลด PDF</button>
+        <button onclick="document.getElementById('pdf-preview-modal').remove()" style="flex:1;padding:12px;background:#F0F2F5;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:Sarabun,sans-serif">ยกเลิก</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+// ── ยืนยันแล้วค่อยสร้างไฟล์ PDF จริงจาก canvas ที่เตรียมไว้ ──
+function confirmDownloadPdf(){
+  if(!_pdfPreviewCanvas)return;
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF('p','mm','a4');
+  const pageWidth=pdf.internal.pageSize.getWidth();
+  const pageHeight=pdf.internal.pageSize.getHeight();
+  const imgWidth=pageWidth;
+  const imgHeight=_pdfPreviewCanvas.h*imgWidth/_pdfPreviewCanvas.w;
+  let heightLeft=imgHeight;
+  let position=0;
+  pdf.addImage(_pdfPreviewCanvas.imgData,'JPEG',0,position,imgWidth,imgHeight);
+  heightLeft-=pageHeight;
+  while(heightLeft>0){
+    position=heightLeft-imgHeight;
+    pdf.addPage();
+    pdf.addImage(_pdfPreviewCanvas.imgData,'JPEG',0,position,imgWidth,imgHeight);
+    heightLeft-=pageHeight;
+  }
+  pdf.save(`DLMS_สรุปผู้บริหาร_${new Date().toISOString().slice(0,10)}.pdf`);
+  document.getElementById('pdf-preview-modal')?.remove();
 }
 
 // ── DARK MODE ──
