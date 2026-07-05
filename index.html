@@ -448,7 +448,9 @@ async function pgDashboard(el){
     lics.forEach(l=>licStatus[l.expiry_status]=(licStatus[l.expiry_status]||0)+1);
     const near_expiry=(licStatus['45d']||0)+(licStatus['30d']||0)+(licStatus['15d']||0);
     const expired=licStatus.expired||0;
-    const compliance_rate=Math.round((licStatus.normal||0)/lics.length*100);
+    // compliance = ใบที่ยังไม่หมดอายุ (ปกติ + ใกล้หมด) / ทั้งหมด
+    const valid_lics=lics.length-expired;
+    const compliance_rate=lics.length>0?Math.round(valid_lics/lics.length*100):100;
 
     // Center stats
     const centerMap={};
