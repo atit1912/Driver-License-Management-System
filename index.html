@@ -20,6 +20,7 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy, updateDoc, addDoc, setDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
 
 // ─── Firebase Config ────────────────────────────────────────
 const firebaseConfig = {
@@ -31,6 +32,20 @@ const firebaseConfig = {
   appId: "1:427087001104:web:4c683a3257c2759e5e3c95"
 };
 const app = initializeApp(firebaseConfig);
+
+// ── App Check (reCAPTCHA v3) ────────────────────────────────
+// วาง Site Key ที่ได้จาก Firebase Console > App Check ตรงนี้
+// ถ้ายังเป็นค่า placeholder ระบบจะข้ามไป (ไม่พัง) — แต่อย่าลืมกลับมาใส่!
+const RECAPTCHA_SITE_KEY = 'PASTE_YOUR_RECAPTCHA_SITE_KEY_HERE';
+if (RECAPTCHA_SITE_KEY && !RECAPTCHA_SITE_KEY.startsWith('PASTE_')) {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
+  } catch (e) { console.warn('AppCheck:', e); }
+}
+
 const db  = getFirestore(app);
 
 window._db = db;
@@ -90,6 +105,16 @@ body.dark .today-label-text{color:#64748B}
 body.dark .report-count-text{color:#CBD5E1}
 .legend-text{color:#6B7280}
 body.dark .legend-text{color:#94A3B8}
+.donut-center{fill:#fff}
+body.dark .donut-center{fill:#1E293B}
+.donut-num{fill:#111}
+body.dark .donut-num{fill:#F1F5F9}
+.rep-btn{padding:12px 16px;border:1px solid #E8ECF0;border-radius:10px;background:#fff;cursor:pointer;text-align:left;flex:1;min-width:140px;font-family:'Sarabun',sans-serif;transition:all .15s}
+.rep-btn:hover{border-color:#3B82F6}
+.rep-btn .rb-title{font-size:13px;font-weight:600;color:#111}
+body.dark .rep-btn{background:#1E293B;border-color:#334155}
+body.dark .rep-btn .rb-title{color:#E2E8F0}
+.sort-active{background:#1D4ED8!important;color:#fff!important;border-color:#1D4ED8!important}
 
 /* ── Layout ── */
 .app{display:flex;min-height:100vh}
@@ -276,11 +301,12 @@ nav.snav{flex:1;padding:12px 8px;overflow-y:auto}
 const NAV=[
   {id:'dashboard',icon:'🏠',label:'หน้าหลัก'},
   {id:'employees',icon:'👥',label:'พนักงาน'},
+  {id:'trainings',icon:'🎓',label:'การอบรม'},
   {id:'reports',  icon:'📊',label:'รายงาน'},
   {id:'settings', icon:'⚙️',label:'ตั้งค่า'},
   {id:'executive',icon:'📈',label:'ภาพรวมผู้บริหาร'},
 ];
-const TITLES={dashboard:'หน้าหลัก',employees:'รายชื่อพนักงาน',reports:'รายงาน',settings:'ตั้งค่า',executive:'ภาพรวมผู้บริหาร'};
+const TITLES={dashboard:'หน้าหลัก',employees:'รายชื่อพนักงาน',trainings:'การอบรมทั้งองค์กร',reports:'รายงาน',settings:'ตั้งค่า',executive:'ภาพรวมผู้บริหาร'};
 const CENTERS=['ศูนย์วิจัยไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า','ศูนย์วิจัยหาดเจ้า','ศูนย์วิจัยหัวกุญแจ','ศูนย์วิจัยเพชรบุรี'];
 const CS={'ศูนย์วิจัยไร่สาม':'ไร่สาม','ศูนย์ปรับปรุงพันธุ์สัตว์น้ำหาดเจ้า':'ปรับปรุงฯ','ศูนย์วิจัยหาดเจ้า':'หาดเจ้า','ศูนย์วิจัยหัวกุญแจ':'หัวกุญแจ','ศูนย์วิจัยเพชรบุรี':'เพชรบุรี'};
 const SC={
@@ -290,9 +316,13 @@ const SC={
   '15d': {cls:'s15',bg:'#FECACA',border:'#F87171',dot:'#EF4444',label:'15 วัน'},
   expired:{cls:'sx',bg:'#991B1B',border:'#7F1D1D',dot:'#fff',label:'หมดอายุ'},
 };
+// สถานะการติดตามการต่อใบขับขี่
+const FS_OPTS=[['','— ยังไม่ติดตาม —'],['notified','📨 แจ้งพนักงานแล้ว'],['in_progress','🔄 กำลังดำเนินการต่อ'],['renewed','✅ ต่อเรียบร้อยแล้ว']];
+const FS_LABEL={'':'','notified':'📨 แจ้งแล้ว','in_progress':'🔄 ดำเนินการ','renewed':'✅ ต่อแล้ว'};
+const FS_COLOR={'notified':'#1D4ED8','in_progress':'#D97706','renewed':'#16A34A'};
 
 // ─── STATE ───────────────────────────────────────────────────
-let page='dashboard', empList=[], empCache={}, reportData=null, currentReportType='', activeStatus='', sidebarOpen=false, _pdfPreviewCanvas=null;
+let page='dashboard', empList=[], empCache={}, reportData=null, currentReportType='', activeStatus='', sidebarOpen=false, _pdfPreviewCanvas=null, empSort=false;
 const _cache={}, _TTL=10*60*1000;
 
 // ─── WAIT FOR FIREBASE ───────────────────────────────────────
@@ -322,11 +352,15 @@ const toDate=v=>{
   }
   return null;
 };
+// แปลง Date → 'YYYY-MM-DD' ตามเวลาท้องถิ่น (แก้บั๊ก timezone ที่ทำให้วันเลื่อนถอย 1 วัน)
+const toLocalISO=d=>{if(!(d instanceof Date)||isNaN(d))return '';return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+// ดึงอักษรแรกของชื่อจริง (ตัดคำนำหน้า นาย/นาง/นางสาว/น.ส. ออกก่อน)
+const avatarChar=name=>{const n=(name||'').replace(/^(นางสาว|น\.ส\.|นาย|นาง|ด\.ช\.|ด\.ญ\.|Mr\.|Mrs\.|Ms\.)\s*/i,'').trim();return n.charAt(0)||'?'};
 const badge=(s,d,sm)=>{const c=SC[s]||SC.normal;const lbl=d!=null?(d<0?`เกิน ${Math.abs(d)} วัน`:d===0?'วันนี้!':`${d} วัน`):c.label;return`<span class="badge ${c.cls}${sm?' badge-sm':''}"><span class="bdot"></span>${lbl}</span>`};
 const spin=(t='กำลังโหลด...')=>`<div class="sw-center"><div class="spin"></div><span style="font-size:13px;color:#9CA3AF">${t}</span></div>`;
 const skelKpi=()=>`<div class="kpi-grid">${'<div class="kpi" style="height:90px"><div style="width:60%;height:12px;background:#F0F2F5;border-radius:6px;margin-bottom:12px"></div><div style="width:40%;height:28px;background:#E8ECF0;border-radius:6px"></div></div>'.repeat(4)}</div>`;
 const empty=(t='ไม่มีข้อมูล')=>`<div style="text-align:center;padding:40px;color:#9CA3AF"><div style="font-size:36px;margin-bottom:8px">📭</div><div style="font-size:13px">${t}</div></div>`;
-const err=e=>`<div style="padding:16px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;color:#DC2626;font-size:13px">❌ ${e}</div>`;
+const err=e=>`<div style="padding:16px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;color:#DC2626;font-size:13px">❌ ${e}<div style="margin-top:10px"><button onclick="renderPage()" style="padding:8px 16px;background:#DC2626;color:#fff;border:none;border-radius:8px;font-size:12.5px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">🔄 ลองใหม่</button></div></div>`;
 const kpi=(label,val,sub,color,bg,icon)=>`<div class="kpi"><div class="kpi-top"><div><div class="kpi-label">${label}</div><div class="kpi-val" style="color:${color}">${val}</div><div class="kpi-sub">${sub}</div></div><div class="kpi-ico" style="background:${bg}">${icon}</div></div></div>`;
 
 // ─── FIRESTORE API LAYER ────────────────────────────────────
@@ -418,6 +452,7 @@ function renderPage(){
   else if(page==='employees'&&!empCache._detail)pgEmployees(el);
   else if(page==='employees'&&empCache._detail)pgDetail(document.getElementById('content'),empCache._detail);
   else if(page==='reports')pgReports(el);
+  else if(page==='trainings')pgTrainings(el);
   else if(page==='settings')pgSettings(el);
   else if(page==='executive')pgExecutive(el);
 }
@@ -435,6 +470,10 @@ function donut(ls){
   let ang=-90,paths='';
   items.forEach(item=>{
     const deg=item.val/total*360,r=55,cx=70,cy=70;
+    if(deg>=359.99){ // สถานะเดียว 100% → วาดวงกลมเต็ม (arc 360° วาดไม่ออกเพราะจุดเริ่ม-จบทับกัน)
+      paths+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${item.color}"/>`;
+      ang+=deg;return;
+    }
     const x1=cx+r*Math.cos(ang*Math.PI/180),y1=cy+r*Math.sin(ang*Math.PI/180);
     ang+=deg;
     const x2=cx+r*Math.cos(ang*Math.PI/180),y2=cy+r*Math.sin(ang*Math.PI/180);
@@ -442,8 +481,8 @@ function donut(ls){
   });
   return`<div class="donut-wrap">
     <svg viewBox="0 0 140 140" style="width:130px;flex-shrink:0">${paths}
-      <circle cx="70" cy="70" r="32" fill="white"/>
-      <text x="70" y="66" text-anchor="middle" font-size="16" font-weight="700" fill="#111" font-family="Sarabun">${total}</text>
+      <circle cx="70" cy="70" r="32" class="donut-center"/>
+      <text x="70" y="66" text-anchor="middle" font-size="16" font-weight="700" class="donut-num" font-family="Sarabun">${total}</text>
       <text x="70" y="80" text-anchor="middle" font-size="10" fill="#9CA3AF" font-family="Sarabun">ใบขับขี่</text>
     </svg>
     <div class="donut-legend">${items.map(i=>`<div class="dl-item"><div class="dl-dot" style="background:${i.color}"></div><span>${i.label}: <strong>${i.val}</strong></span></div>`).join('')}</div>
@@ -452,8 +491,14 @@ function donut(ls){
 async function pgDashboard(el){
   el.innerHTML=skelKpi()+spin('กำลังดึงข้อมูล...');
   try{
-    const [allEmps,allLics]=await Promise.all([fsGetAll('employees'),fsGetAll('licenses')]);
+    const [allEmps,allLics,allTrns]=await Promise.all([fsGetAll('employees'),fsGetAll('licenses'),fsGetAll('trainings')]);
     const lics=allLics.map(normalizeLic);
+
+    // Training summary — นับพนักงานที่มีประวัติอบรมแล้ว
+    const trainedIds=new Set(allTrns.map(t=>t.employee_id));
+    const trainedCount=allEmps.filter(e=>trainedIds.has(e.id)||trainedIds.has(e.employee_id)).length;
+    const pendingCount=allEmps.length-trainedCount;
+    const trnDue=allTrns.map(t=>{const nd=toDate(t.next_due_date);const d=nd?daysUntil(nd):null;return{...t,_d:d,_s:calcStatus(d)};}).filter(t=>t._s!=='normal').length;
 
     // KPI
     const total_employees=allEmps.length;
@@ -534,6 +579,26 @@ async function pgDashboard(el){
         ${donut(licStatus)}
       </div>
     </div>
+    <div class="card card-p" style="margin-bottom:16px">
+      <div class="stitle">🎓 สรุปการอบรม</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        ${[['อบรมแล้ว',trainedCount,'#16A34A','#DCFCE7','✅'],
+           ['ยังไม่อบรม',pendingCount,'#D97706','#FEF3C7','⏳'],
+           ['ครบกำหนดอบรมซ้ำ',trnDue,'#DC2626','#FEE2E2','🔁']].map(([l,v,c,bg,ic])=>`
+          <div style="background:${bg};border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:20px">${ic}</div>
+            <div style="font-size:22px;font-weight:700;color:${c}">${v}</div>
+            <div style="font-size:11px;color:${c}">${l}</div>
+          </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+        <div class="cbar-track" style="height:8px;flex:1">
+          <div class="cbar-seg" style="width:${Math.round(trainedCount/(allEmps.length||1)*100)}%;background:#16A34A"></div>
+          <div class="cbar-seg" style="width:${Math.round(pendingCount/(allEmps.length||1)*100)}%;background:#D97706"></div>
+        </div>
+        <div class="legend-text" style="font-size:11px">${trainedCount}/${allEmps.length} คน (${Math.round(trainedCount/(allEmps.length||1)*100)}%)</div>
+      </div>
+    </div>
     <div class="card card-p">
       <div class="stitle">🔔 รายการแจ้งเตือนล่าสุด</div>
       ${alerts.length===0?empty('ไม่มีรายการแจ้งเตือน 🎉'):alerts.map(a=>`
@@ -542,14 +607,17 @@ async function pgDashboard(el){
             <span style="font-size:20px">🪪</span>
             <div>
               <div style="font-size:13px;font-weight:600">${a.employee_name}</div>
-              <div style="font-size:11px;color:#6B7280">${a.research_center} · ${a.license_type||''}</div>
+              <div style="font-size:11px;color:#6B7280">${a.research_center} · ${a.license_type||''}${a.follow_status?` · <span style="color:${FS_COLOR[a.follow_status]||'#6B7280'};font-weight:600">${FS_LABEL[a.follow_status]}</span>`:''}</div>
             </div>
           </div>
           ${badge(a.expiry_status,a.days_remaining,true)}
         </div>`).join('')}
+      ${alerts.length>0?`<button onclick="viewAllAlerts()" style="width:100%;margin-top:8px;padding:11px;background:transparent;color:#1D4ED8;border:1px dashed #BFDBFE;border-radius:9px;font-size:13px;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600">ดูรายการทั้งหมด →</button>`:''}
     </div>`;
   }catch(e){el.innerHTML=err(e.message);}
 }
+// ไปหน้าพนักงาน พร้อมเรียงตามวันคงเหลือ (น้อย→มาก)
+function viewAllAlerts(){empSort=true;activeStatus='';go('employees');}
 
 // ── EMPLOYEES ──
 async function pgEmployees(el){
@@ -577,18 +645,22 @@ function renderEmpList(el){
       </select>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         ${statFilters.map(([v,l])=>`<button class="fpill${activeStatus===v?' active':''}" id="ep-${v||'all'}" onclick="setEmpStatus('${v}')">${l}${counts[v]!==undefined?` <span style="opacity:.7">${counts[v]}</span>`:''}</button>`).join('')}
+        <button class="fpill${empSort?' sort-active':''}" id="ep-sort" onclick="toggleEmpSort()">⏱️ เรียงตามวันคงเหลือ</button>
       </div>
     </div>
   </div>
   <div style="font-size:12px;color:#9CA3AF;margin-bottom:10px;padding-left:2px" id="ecount">พบ ${empList.length} คน</div>
-  <div id="elist">${empRows(empList)}</div>`;
+  <div id="elist">${empRows(sortEmp(empList))}</div>`;
 }
+const empMinDays=e=>{const ds=[e.licenses?.corporate?.days_remaining,e.licenses?.government?.days_remaining].filter(v=>v!=null);return ds.length?Math.min(...ds):9999;};
+const sortEmp=list=>empSort?[...list].sort((a,b)=>empMinDays(a)-empMinDays(b)):list;
+function toggleEmpSort(){empSort=!empSort;document.getElementById('ep-sort')?.classList.toggle('sort-active',empSort);filterEmp();}
 function empRows(list){
   return list.map(e=>{
     const corp=e.licenses?.corporate,govt=e.licenses?.government;
     return`<div class="emp-row" onclick="openEmp('${e.employee_id||e.id}')">
       <div style="display:flex;align-items:center;gap:12px">
-        <div class="eavatar">${(e.full_name||'').charAt(2)||'?'}</div>
+        <div class="eavatar">${avatarChar(e.full_name)}</div>
         <div>
           <div style="font-size:14px;font-weight:600">${e.full_name}</div>
           <div style="font-size:11.5px;color:#9CA3AF;margin-top:1px">${e.employee_id||e.id} · ${CS[e.research_center]||e.research_center}</div>
@@ -612,30 +684,36 @@ function filterEmp(){
     const ms=!activeStatus||e.overall_status===activeStatus;
     return mq&&mc&&ms;
   });
-  document.getElementById('elist').innerHTML=empRows(f);
+  document.getElementById('elist').innerHTML=empRows(sortEmp(f));
   document.getElementById('ecount').textContent=`พบ ${f.length} จาก ${empList.length} คน`;
 }
 async function openEmp(id){
   document.getElementById('content').innerHTML=spin();
   try{
     const {where}=fb();
-    const[emp,lics,trns]=await Promise.all([
+    const[emp,lics,trns,hist]=await Promise.all([
       fsGet('employees',id),
       fsQuery('licenses',where('employee_id','==',id)),
       fsQuery('trainings',where('employee_id','==',id)),
+      fsQuery('license_history',where('employee_id','==',id)).catch(()=>[]),
     ]);
     const normLics=lics.map(normalizeLic);
-    empCache._detail={emp:{...emp,employee_id:emp?.id||id},lics:normLics,trns};
+    hist.sort((a,b)=>(b.changed_at||'').localeCompare(a.changed_at||''));
+    empCache._detail={emp:{...emp,employee_id:emp?.id||id},lics:normLics,trns,hist};
     renderNav();
     pgDetail(document.getElementById('content'),empCache._detail);
   }catch(e){document.getElementById('content').innerHTML=err(e.message);}
 }
 
 // ── EMPLOYEE DETAIL ──
-function pgDetail(el,{emp,lics,trns}){
+function pgDetail(el,{emp,lics,trns,hist}){
   const empId=emp.employee_id||emp.id;
+  const histFor=id=>(hist||[]).filter(h=>h.license_id===id);
 
-  const licHTML=lics.length===0?empty('ยังไม่มีข้อมูลใบขับขี่'):lics.map(l=>`
+  const licHTML=lics.length===0?empty('ยังไม่มีข้อมูลใบขับขี่'):lics.map(l=>{
+    const lh=histFor(l.id);
+    const needFollow=l.expiry_status!=='normal';
+    return`
     <div class="card" style="padding:16px;border-left:4px solid ${SC[l.expiry_status]?.dot||'#E8ECF0'};margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div>
@@ -651,14 +729,39 @@ function pgDetail(el,{emp,lics,trns}){
         <div><div class="ilabel">อัพเดตล่าสุด</div><div class="ival">${fdate(l.updated_at)}</div></div>
       </div>
 
-      <!-- รูปใบขับขี่ (แสดงเฉพาะถ้ามี) -->
-      ${l.photo_url?`<div style="margin-top:12px">
-        <a href="${l.photo_url}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;text-decoration:none;font-weight:500">🖼️ ดูรูปใบขับขี่</a>
+      ${needFollow?`<div style="margin-top:12px;padding:10px 12px;background:${SC[l.expiry_status]?.bg||'#F8FAFC'};border-radius:9px">
+        <div class="ilabel" style="margin-bottom:5px">🔖 สถานะการติดตาม</div>
+        <select class="fsel" style="width:100%" onchange="setFollowStatus('${l.id}','${empId}',this.value)">
+          ${FS_OPTS.map(([v,t])=>`<option value="${v}"${(l.follow_status||'')===v?' selected':''}>${t}</option>`).join('')}
+        </select>
       </div>`:''}
 
-      <button onclick="editLicense('${l.id}','${empId}','${l.license_type}','${l.license_number||''}','${l._expiryDate?l._expiryDate.toISOString().slice(0,10):''}')"
-        style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">✏️ แก้ไขวันหมดอายุ</button>
-    </div>`).join('');
+      ${(l.photo_data||l.photo_url)?`<div style="margin-top:12px">
+        <div class="ilabel" style="margin-bottom:5px">🖼️ รูปใบขับขี่ (กดเพื่อขยาย)</div>
+        <img src="${l.photo_data||l.photo_url}" onclick="viewLicPhoto('${l.id}')"
+          style="max-width:200px;max-height:120px;border-radius:9px;border:1px solid #E8ECF0;cursor:zoom-in;display:block;object-fit:cover"
+          onerror="this.style.display='none'">
+      </div>`:''}
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button onclick="editLicense('${l.id}','${empId}')"
+          style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">✏️ แก้ไขวันหมดอายุ</button>
+        <button onclick="pickLicPhoto('${l.id}','${empId}')"
+          style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">📷 ${l.photo_data?'เปลี่ยนรูป':'เพิ่มรูปใบขับขี่'}</button>
+        ${l.photo_data?`<button onclick="removeLicPhoto('${l.id}','${empId}')"
+          style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#DC2626;padding:6px 12px;background:#FEF2F2;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">🗑️ ลบรูป</button>`:''}
+      </div>
+
+      ${lh.length?`<div style="margin-top:12px;border-top:1px dashed #E8ECF0;padding-top:10px">
+        <div class="ilabel" style="margin-bottom:6px">📜 ประวัติการต่อใบขับขี่ (${lh.length} ครั้ง)</div>
+        ${lh.map(h=>`<div style="font-size:11.5px;color:#6B7280;padding:3px 0;display:flex;gap:6px;flex-wrap:wrap">
+          <span style="color:#9CA3AF">${fdate(h.changed_at)}</span>
+          <span>วันหมดอายุ <s style="color:#DC2626">${fdate(h.old_expiry)}</s> → <strong style="color:#16A34A">${fdate(h.new_expiry)}</strong></span>
+          ${h.old_license_number!==h.new_license_number?`<span>· เลขที่ ${h.old_license_number||'-'} → ${h.new_license_number||'-'}</span>`:''}
+        </div>`).join('')}
+      </div>`:''}
+    </div>`;
+  }).join('');
 
   const trnHTML=trns.length===0?empty('ยังไม่มีประวัติการอบรม'):trns.map(t=>{
     const nd=toDate(t.next_due_date),d=nd?daysUntil(nd):null,ds=calcStatus(d);
@@ -670,7 +773,7 @@ function pgDetail(el,{emp,lics,trns}){
         <div><div class="ilabel">ครบกำหนดถัดไป</div><div class="ival ${ds!=='normal'?'hl':''}">${fdate(t.next_due_date)}</div></div>
         <div><div class="ilabel">สถานะ</div><div class="ival">${badge(ds,d,true)}</div></div>
       </div>
-      <button onclick="editTraining('${t.id}','${empId}','${t.course_name}','${t.training_date}','${t.trainer||''}','${t.next_due_date||''}')"
+      <button onclick="editTraining('${t.id}','${empId}')"
         style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">✏️ แก้ไข</button>
     </div>`;
   }).join('');
@@ -680,7 +783,7 @@ function pgDetail(el,{emp,lics,trns}){
     <button class="back-btn" onclick="backToList()">← กลับ</button>
     <div class="card card-p" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <div class="eavatar" style="width:56px;height:56px;font-size:22px;border-radius:14px">${(emp.full_name||'').charAt(2)||'?'}</div>
+        <div class="eavatar" style="width:56px;height:56px;font-size:22px;border-radius:14px">${avatarChar(emp.full_name)}</div>
         <div style="flex:1">
           <div style="font-size:17px;font-weight:700">${emp.full_name}</div>
           <div style="font-size:12px;color:#9CA3AF;margin-top:2px">รหัส: ${empId}</div>
@@ -712,7 +815,14 @@ function swTab(t){
 function backToList(){empCache._detail=null;renderNav();renderEmpList(document.getElementById('content'));}
 
 // ── EDIT LICENSE ──
-function editLicense(licId,empId,licType,licNo,expiryDate){
+const escAttr=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function editLicense(licId,empId){
+  const l=(empCache._detail?.lics||[]).find(x=>x.id===licId)||{};
+  const licType=l.license_type||'',licNo=l.license_number||'';
+  const expiryDate=l._expiryDate?toLocalISO(l._expiryDate):'';
+  showLicenseModal(licId,empId,licType,licNo,expiryDate);
+}
+function showLicenseModal(licId,empId,licType,licNo,expiryDate){
   const modal=document.createElement('div');
   modal.id='edit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;display:flex;align-items:center;justify-content:center;padding:20px';
@@ -722,7 +832,7 @@ function editLicense(licId,empId,licType,licNo,expiryDate){
       <div style="font-size:12px;color:#6B7280;margin-bottom:18px">${licType}</div>
       <div style="margin-bottom:13px">
         <div class="ilabel" style="margin-bottom:5px">เลขที่ใบขับขี่</div>
-        <input id="edit-licno" value="${licNo}" placeholder="เลขที่ใบขับขี่" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:14px;font-family:Sarabun,sans-serif;outline:none">
+        <input id="edit-licno" value="${escAttr(licNo)}" placeholder="เลขที่ใบขับขี่" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:14px;font-family:Sarabun,sans-serif;outline:none">
       </div>
       <div style="margin-bottom:13px">
         <div class="ilabel" style="margin-bottom:5px">วันหมดอายุ (ปี ค.ศ.)</div>
@@ -741,18 +851,108 @@ async function submitEditLicense(licId,empId){
   if(!expiry){alert('กรุณาเลือกวันหมดอายุ');return;}
   if(!licNo){alert('กรุณากรอกเลขที่ใบขับขี่');return;}
   try{
+    // เก็บค่าเดิมไว้ก่อนบันทึก เพื่อลง log ประวัติการต่อ
+    const old=(empCache._detail?.lics||[]).find(x=>x.id===licId)||{};
+    const oldExpiry=old._expiryDate?toLocalISO(old._expiryDate):'';
     await fsUpdate('licenses',licId,{license_number:licNo,expiry_date:expiry});
+    // บันทึกประวัติ (เฉพาะเมื่อค่าเปลี่ยนจริง) — ถ้าลง log ไม่สำเร็จ ไม่ต้อง block การบันทึกหลัก
+    if(oldExpiry!==expiry||old.license_number!==licNo){
+      try{
+        const {addDoc,collection}=fb();
+        await addDoc(collection(getDB(),'license_history'),{
+          license_id:licId,employee_id:empId,license_type:old.license_type||'',
+          old_expiry:oldExpiry,new_expiry:expiry,
+          old_license_number:old.license_number||'',new_license_number:licNo,
+          changed_at:new Date().toISOString()
+        });
+      }catch(e){console.warn('history:',e);}
+    }
     document.getElementById('edit-modal').remove();
     alert('✅ บันทึกสำเร็จ');
+    empList=[];preloadData(); // รีเฟรชรายชื่อ+badge ให้เป็นข้อมูลล่าสุด
     openEmp(empId);
   }catch(e){alert('❌ '+e.message);}
 }
 
+// ── FOLLOW-UP STATUS ──
+async function setFollowStatus(licId,empId,val){
+  try{
+    await fsUpdate('licenses',licId,{follow_status:val});
+    const l=(empCache._detail?.lics||[]).find(x=>x.id===licId);
+    if(l)l.follow_status=val;
+    empList=[];preloadData();
+  }catch(e){alert('❌ บันทึกสถานะไม่สำเร็จ: '+e.message);}
+}
+
+// ── LICENSE PHOTO (เก็บ base64 ใน Firestore — ไม่ต้องใช้ Storage) ──
+function pickLicPhoto(licId,empId){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=async()=>{
+    const file=inp.files[0];if(!file)return;
+    if(!file.type.startsWith('image/')){alert('กรุณาเลือกไฟล์รูปภาพ');return;}
+    try{
+      const dataUrl=await compressImage(file);
+      if(dataUrl.length>950000){alert('❌ รูปใหญ่เกินไปหลังบีบอัด กรุณาถ่าย/ครอปให้เล็กลง');return;}
+      await fsUpdate('licenses',licId,{photo_data:dataUrl});
+      const l=(empCache._detail?.lics||[]).find(x=>x.id===licId);
+      if(l)l.photo_data=dataUrl;
+      pgDetail(document.getElementById('content'),empCache._detail);
+    }catch(e){alert('❌ บันทึกรูปไม่สำเร็จ: '+e.message);}
+  };
+  inp.click();
+}
+// บีบอัดรูปด้วย canvas: จำกัดด้านยาวสุด 900px, JPEG — ลด quality อัตโนมัติถ้ายังใหญ่
+function compressImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const MAX=900;
+      let{width:w,height:h}=img;
+      if(Math.max(w,h)>MAX){const s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      let q=0.75,out=cv.toDataURL('image/jpeg',q);
+      while(out.length>900000&&q>0.3){q-=0.1;out=cv.toDataURL('image/jpeg',q);}
+      resolve(out);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'));};
+    img.src=url;
+  });
+}
+function viewLicPhoto(licId){
+  const l=(empCache._detail?.lics||[]).find(x=>x.id===licId);
+  const src=l?.photo_data||l?.photo_url;if(!src)return;
+  const modal=document.createElement('div');
+  modal.id='photo-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99;display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+  modal.onclick=()=>modal.remove();
+  modal.innerHTML=`
+    <img src="${src}" style="max-width:100%;max-height:90vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)" onclick="event.stopPropagation()">
+    <button onclick="document.getElementById('photo-modal').remove()"
+      style="position:fixed;top:14px;right:14px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;border:none;font-size:18px;cursor:pointer;line-height:1">✕</button>`;
+  document.body.appendChild(modal);
+}
+async function removeLicPhoto(licId,empId){
+  if(!confirm('ลบรูปใบขับขี่นี้?'))return;
+  try{
+    await fsUpdate('licenses',licId,{photo_data:''});
+    const l=(empCache._detail?.lics||[]).find(x=>x.id===licId);
+    if(l)l.photo_data='';
+    pgDetail(document.getElementById('content'),empCache._detail);
+  }catch(e){alert('❌ ลบรูปไม่สำเร็จ: '+e.message);}
+}
+
 // ── TRAINING MODAL ──
 function addTraining(empId){showTrainingModal(null,empId,'','','','');}
-function editTraining(trnId,empId,cn,td,tr,nd){showTrainingModal(trnId,empId,cn,td,tr,nd);}
+function editTraining(trnId,empId){
+  const t=(empCache._detail?.trns||[]).find(x=>x.id===trnId)||{};
+  showTrainingModal(trnId,empId,t.course_name||'',t.training_date||'',t.trainer||'',t.next_due_date||'');
+}
 function showTrainingModal(trnId,empId,cn,td,tr,nd){
-  const toDateVal=d=>{if(!d||d==='-'||d==='undefined')return '';try{return new Date(d).toISOString().slice(0,10);}catch{return '';}};
+  const toDateVal=d=>{const dt=toDate(d);return dt?toLocalISO(dt):'';};
   const isEdit=!!trnId;
   const modal=document.createElement('div');
   modal.id='trn-modal';
@@ -763,13 +963,13 @@ function showTrainingModal(trnId,empId,cn,td,tr,nd){
       <div style="font-size:12px;color:#6B7280;margin-bottom:18px">${isEdit?'แก้ไขข้อมูลการอบรม':'เพิ่มประวัติการอบรมใหม่'}</div>
       <div style="display:flex;flex-direction:column;gap:12px">
         <div><div class="ilabel" style="margin-bottom:5px">หลักสูตร *</div>
-          <input id="trn-course" value="${cn||''}" placeholder="เช่น การขับรถอย่างปลอดภัย" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
+          <input id="trn-course" value="${escAttr(cn)}" placeholder="เช่น การขับรถอย่างปลอดภัย" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
         </div>
         <div><div class="ilabel" style="margin-bottom:5px">วันที่อบรม *</div>
           <input type="date" id="trn-date" value="${toDateVal(td)}" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
         </div>
         <div><div class="ilabel" style="margin-bottom:5px">ผู้สอน</div>
-          <input id="trn-trainer" value="${tr||''}" placeholder="เช่น SHE&En Center" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
+          <input id="trn-trainer" value="${escAttr(tr)}" placeholder="เช่น SHE&En Center" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
         </div>
         <div><div class="ilabel" style="margin-bottom:5px">วันครบกำหนดถัดไป</div>
           <input type="date" id="trn-due" value="${toDateVal(nd)}" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
@@ -799,6 +999,7 @@ async function submitTraining(trnId,empId){
     document.getElementById('trn-modal').remove();
     Object.keys(_cache).filter(k=>k.startsWith('col:')).forEach(k=>delete _cache[k]);
     alert('✅ บันทึกการอบรมสำเร็จ');
+    empList=[];preloadData(); // รีเฟรชรายชื่อให้เป็นข้อมูลล่าสุด
     openEmp(empId);
   }catch(e){alert('❌ '+e.message);}
 }
@@ -811,9 +1012,9 @@ function pgReports(el){
       <div class="stitle">เลือกรายงาน</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         ${[['corp_urgent','🚨','เครือฯ ใกล้หมดอายุ','ส่งเจ้าหน้าที่ต่อใบขับขี่'],['license','🪪','ใบขับขี่ใกล้หมด','ภายใน 45 วัน (ทั้งหมด)'],['full','📋','รายงานรวมทั้งหมด','พนักงาน + ใบขับขี่']]
-          .map(([k,ic,l,d])=>`<button onclick="loadReport('${k}')" style="padding:12px 16px;border:1px solid #E8ECF0;border-radius:10px;background:#fff;cursor:pointer;text-align:left;flex:1;min-width:140px;font-family:Sarabun,sans-serif;transition:all .15s" onmouseover="this.style.borderColor='#3B82F6'" onmouseout="this.style.borderColor='#E8ECF0'">
+          .map(([k,ic,l,d])=>`<button class="rep-btn" onclick="loadReport('${k}')">
             <div style="font-size:22px;margin-bottom:4px">${ic}</div>
-            <div style="font-size:13px;font-weight:600;color:#111">${l}</div>
+            <div class="rb-title">${l}</div>
             <div style="font-size:11px;color:#9CA3AF;margin-top:2px">${d}</div>
           </button>`).join('')}
       </div>
@@ -836,7 +1037,7 @@ async function loadReport(type){
         .sort((a,b)=>(a.days_remaining??999)-(b.days_remaining??999))
         .map((l,i)=>{
           const e=empMap[l.employee_id]||{};
-          return{ลำดับ:i+1,ชื่อ_นามสกุล:e.full_name||l.employee_id,บริษัท:e.com||'-',email:e.email||'-',เลขที่ใบขับขี่เครือฯ:l.license_number||'-',วันหมดอายุ:fdate(l.expiry_date),สถานะ:l.expiry_status};
+          return{ลำดับ:i+1,ชื่อ_นามสกุล:e.full_name||l.employee_id,บริษัท:e.com||'-',email:e.email||'-',เลขที่ใบขับขี่เครือฯ:l.license_number||'-',วันหมดอายุ:fdate(l.expiry_date),สถานะ:l.expiry_status,การติดตาม:FS_LABEL[l.follow_status]||'—'};
         });
     }else if(type==='license'){
       data=allLics.filter(l=>l.expiry_status!=='normal')
@@ -854,7 +1055,7 @@ async function loadReport(type){
     currentReportType=type;
     if(!data.length){el.innerHTML=empty('ไม่มีรายการในรายงานนี้ 🎉');return;}
     const headers=Object.keys(data[0]);
-    const thLabel={full_name:'ชื่อ-นามสกุล',research_center:'ศูนย์วิจัย',license_type:'ประเภท',license_number:'เลขใบขับขี่',expiry_date:'หมดอายุ',days_remaining:'วันคงเหลือ',status:'สถานะ',corp_license_no:'เลขใบเครือฯ',corp_expiry:'หมดอายุเครือฯ',corp_status:'สถานะเครือฯ',govt_license_no:'เลขใบราชการ',govt_expiry:'หมดอายุราชการ',govt_status:'สถานะราชการ',ลำดับ:'ลำดับ',ชื่อ_นามสกุล:'ชื่อ-นามสกุล',บริษัท:'บริษัท',email:'e-mail',เลขที่ใบขับขี่เครือฯ:'เลขที่ใบขับขี่เครือฯ',วันหมดอายุ:'วันหมดอายุ',สถานะ:'สถานะ'};
+    const thLabel={full_name:'ชื่อ-นามสกุล',research_center:'ศูนย์วิจัย',license_type:'ประเภท',license_number:'เลขใบขับขี่',expiry_date:'หมดอายุ',days_remaining:'วันคงเหลือ',status:'สถานะ',corp_license_no:'เลขใบเครือฯ',corp_expiry:'หมดอายุเครือฯ',corp_status:'สถานะเครือฯ',govt_license_no:'เลขใบราชการ',govt_expiry:'หมดอายุราชการ',govt_status:'สถานะราชการ',ลำดับ:'ลำดับ',ชื่อ_นามสกุล:'ชื่อ-นามสกุล',บริษัท:'บริษัท',email:'e-mail',เลขที่ใบขับขี่เครือฯ:'เลขที่ใบขับขี่เครือฯ',วันหมดอายุ:'วันหมดอายุ',สถานะ:'สถานะ',การติดตาม:'การติดตาม'};
     el.innerHTML=`<div class="card card-p">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div class="report-count-text" style="font-size:13px;font-weight:600">พบ ${data.length} รายการ</div>
@@ -888,26 +1089,121 @@ function dlXLSX(){
   if(!reportData?.length || typeof XLSX==='undefined'){alert('❌ ไม่พบข้อมูล หรือไลบรารี Excel โหลดไม่สำเร็จ');return;}
 
   const statusLabel={'45d':'45 วัน','30d':'30 วัน','15d':'15 วัน','expired':'หมดอายุแล้ว'};
-  const headers=['ลำดับ','ชื่อ-นามสกุล','บริษัท','e-mail','เลขที่ใบขับขี่เครือฯ','วันหมดอายุ','สถานะ'];
+  const headers=['ลำดับ','ชื่อ-นามสกุล','บริษัท','e-mail','เลขที่ใบขับขี่เครือฯ','วันหมดอายุ','สถานะ','การติดตาม'];
 
   const aoa=[
     ['รายงานใบขับขี่เครือฯ ใกล้หมดอายุ / หมดอายุแล้ว (45 วันลงมา)'],
     [`ข้อมูล ณ วันที่ ${new Date().toLocaleDateString('th-TH')}  |  จำนวน ${reportData.length} รายการ`],
     [],
     headers,
-    ...reportData.map(r=>[r['ลำดับ'],r['ชื่อ_นามสกุล'],r['บริษัท'],r['email'],r['เลขที่ใบขับขี่เครือฯ'],r['วันหมดอายุ'],statusLabel[r['สถานะ']]||r['สถานะ']])
+    ...reportData.map(r=>[r['ลำดับ'],r['ชื่อ_นามสกุล'],r['บริษัท'],r['email'],r['เลขที่ใบขับขี่เครือฯ'],r['วันหมดอายุ'],statusLabel[r['สถานะ']]||r['สถานะ'],r['การติดตาม']||'—'])
   ];
 
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:8},{wch:28},{wch:32},{wch:28},{wch:20},{wch:14},{wch:14}];
+  ws['!cols']=[{wch:8},{wch:28},{wch:32},{wch:28},{wch:20},{wch:14},{wch:14},{wch:16}];
   ws['!merges']=[
-    {s:{r:0,c:0},e:{r:0,c:6}},
-    {s:{r:1,c:0},e:{r:1,c:6}},
+    {s:{r:0,c:0},e:{r:0,c:7}},
+    {s:{r:1,c:0},e:{r:1,c:7}},
   ];
 
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'ใบขับขี่เครือฯใกล้หมดอายุ');
   XLSX.writeFile(wb,`DLMS_ใบขับขี่เครือฯใกล้หมดอายุ_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ── TRAININGS (ทั้งองค์กร) ──
+let trnTab='pending', trnData=null;
+async function pgTrainings(el){
+  el.innerHTML=spin('กำลังโหลดข้อมูลการอบรม...');
+  try{
+    const[allEmps,allTrns]=await Promise.all([fsGetAll('employees'),fsGetAll('trainings')]);
+    const trnByEmp={};
+    allTrns.forEach(t=>{
+      const k=t.employee_id;
+      if(!trnByEmp[k])trnByEmp[k]=[];
+      trnByEmp[k].push(t);
+    });
+    const rows=allEmps.map(e=>{
+      const id=e.id||e.employee_id;
+      const trns=(trnByEmp[id]||[]).map(t=>{
+        const nd=toDate(t.next_due_date);
+        const d=nd?daysUntil(nd):null;
+        return{...t,_d:d,_s:calcStatus(d)};
+      }).sort((a,b)=>(b.training_date||'').localeCompare(a.training_date||''));
+      const latest=trns[0]||null;
+      return{id,name:e.full_name,center:e.research_center,trns,latest,
+        trained:trns.length>0,
+        due:trns.some(t=>t._s!=='normal')};
+    });
+    trnData={rows,total:allEmps.length};
+    renderTrnPage(el);
+  }catch(e){el.innerHTML=err(e.message);}
+}
+function renderTrnPage(el){
+  const {rows,total}=trnData;
+  const trained=rows.filter(r=>r.trained);
+  const pending=rows.filter(r=>!r.trained);
+  const due=rows.filter(r=>r.due);
+  const tabs=[['pending','⏳ ยังไม่อบรม',pending.length],['due','🔁 ครบกำหนดซ้ำ',due.length],['trained','✅ อบรมแล้ว',trained.length]];
+  el.innerHTML=`
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+    ${kpi('อบรมแล้ว',trained.length,`จาก ${total} คน`,'#16A34A','#DCFCE7','✅')}
+    ${kpi('ยังไม่อบรม',pending.length,'ต้องจัดอบรม','#D97706','#FEF3C7','⏳')}
+    ${kpi('ครบกำหนดอบรมซ้ำ',due.length,'ภายใน 45 วัน/เกินแล้ว','#DC2626','#FEE2E2','🔁')}
+  </div>
+  <div class="card card-p" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="tabs" style="margin-bottom:0;flex:1;min-width:260px">
+        ${tabs.map(([v,l,n])=>`<button class="tab-btn${trnTab===v?' active':''}" onclick="setTrnTab('${v}')">${l} (${n})</button>`).join('')}
+      </div>
+      <button class="btn-primary" style="background:#16A34A" onclick="dlTrnCSV()">⬇️ Export รายชื่อแท็บนี้</button>
+    </div>
+  </div>
+  <div id="trn-list">${trnRows()}</div>`;
+}
+function trnRows(){
+  const {rows}=trnData;
+  const list=trnTab==='pending'?rows.filter(r=>!r.trained)
+    :trnTab==='due'?rows.filter(r=>r.due).sort((a,b)=>{
+      const ad=Math.min(...a.trns.filter(t=>t._s!=='normal').map(t=>t._d??9999));
+      const bd=Math.min(...b.trns.filter(t=>t._s!=='normal').map(t=>t._d??9999));
+      return ad-bd;
+    })
+    :rows.filter(r=>r.trained);
+  if(!list.length)return empty(trnTab==='pending'?'ทุกคนผ่านการอบรมแล้ว 🎉':trnTab==='due'?'ยังไม่มีใครครบกำหนดอบรมซ้ำ 🎉':'ยังไม่มีข้อมูลการอบรม');
+  return list.map(r=>{
+    const dueTrn=r.trns.find(t=>t._s!=='normal');
+    return`<div class="emp-row" onclick="openTrnEmp('${r.id}')">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="eavatar">${avatarChar(r.name)}</div>
+        <div>
+          <div style="font-size:14px;font-weight:600">${r.name}</div>
+          <div style="font-size:11.5px;color:#9CA3AF;margin-top:1px">${CS[r.center]||r.center}${r.latest?` · อบรมล่าสุด ${fdate(r.latest.training_date)}`:''}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        ${trnTab==='due'&&dueTrn?badge(dueTrn._s,dueTrn._d,true):trnTab==='pending'?'<span class="badge s45 badge-sm"><span class="bdot"></span>รอจัดอบรม</span>':r.latest&&r.latest.next_due_date?`<span style="font-size:11px;color:#9CA3AF">ครบกำหนด ${fdate(r.latest.next_due_date)}</span>`:''}
+        <span style="color:#C7D2DA;font-size:18px">›</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+function setTrnTab(v){trnTab=v;renderTrnPage(document.getElementById('content'));}
+function openTrnEmp(id){page='employees';renderNav();openEmp(id);}
+function dlTrnCSV(){
+  const {rows}=trnData;
+  const list=trnTab==='pending'?rows.filter(r=>!r.trained):trnTab==='due'?rows.filter(r=>r.due):rows.filter(r=>r.trained);
+  if(!list.length){alert('ไม่มีรายชื่อในแท็บนี้');return;}
+  const tabName={pending:'ยังไม่อบรม',due:'ครบกำหนดอบรมซ้ำ',trained:'อบรมแล้ว'}[trnTab];
+  const data=list.map((r,i)=>({ลำดับ:i+1,'ชื่อ-นามสกุล':r.name,ศูนย์วิจัย:r.center,
+    อบรมล่าสุด:r.latest?fdate(r.latest.training_date):'-',
+    หลักสูตร:r.latest?.course_name||'-',
+    ครบกำหนดถัดไป:r.latest?fdate(r.latest.next_due_date):'-'}));
+  const h=Object.keys(data[0]);
+  const csv=[h.join(','),...data.map(r=>h.map(k=>`"${r[k]??''}"`).join(','))].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download=`DLMS_อบรม_${tabName}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
 
 // ── SETTINGS ──
@@ -918,7 +1214,7 @@ function pgSettings(el){
       <div class="stitle">⚙️ การตั้งค่าระบบ</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${[['🔥 Database','Firebase Firestore','#DCFCE7','#166534'],
-           ['🖼️ File Storage','Google Drive (รูปใบขับขี่)','#EFF6FF','#1D4ED8'],
+           ['🌐 Hosting','GitHub Pages (PWA)','#EFF6FF','#1D4ED8'],
            ['🤖 Telegram Bot','เชื่อมต่อแล้ว (GAS)','#F0FDF4','#15803D'],
            ['🔔 แจ้งเตือน 45/30/15/0 วัน','เปิดทั้งหมด','#ECFDF5','#059669']].map(([k,v,bg,c])=>`
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:${bg};border-radius:8px">
@@ -930,9 +1226,9 @@ function pgSettings(el){
     <div class="card card-p">
       <div class="stitle">📋 เกี่ยวกับระบบ</div>
       <div style="font-size:13px;color:#6B7280;line-height:2">
-        DLMS v2.0 — Driver License Management System<br>
+        DLMS v2.1 — Driver License Management System<br>
         ศูนย์วิจัย 5 แห่ง · พนักงาน 47 คน · ใบขับขี่ 94 ใบ<br>
-        Database: Firebase Firestore · Storage: Google Drive<br>
+        Database: Firebase Firestore · Hosting: GitHub Pages<br>
         Notification: Telegram Bot (GAS Trigger)
       </div>
     </div>
@@ -940,10 +1236,45 @@ function pgSettings(el){
 }
 
 // ── EXECUTIVE ──
+// กราฟเส้นแนวโน้ม compliance จาก snapshot รายเดือน (เขียนโดย GAS ทุกต้นเดือน)
+function trendChart(snaps,currentRate){
+  const pts=(snaps||[]).filter(s=>s.month&&typeof s.compliance_rate==='number')
+    .sort((a,b)=>a.month.localeCompare(b.month)).slice(-12);
+  // เติมค่าปัจจุบันเป็นจุดสุดท้าย (เดือนนี้แบบ real-time)
+  const nowMonth=new Date().toISOString().slice(0,7);
+  if(!pts.length||pts[pts.length-1].month!==nowMonth) pts.push({month:nowMonth,compliance_rate:currentRate,_live:true});
+  if(pts.length<2){
+    return`<div style="font-size:12.5px;color:#9CA3AF;padding:8px 0">ยังมีข้อมูลไม่พอวาดกราฟ — ระบบจะเก็บค่า compliance อัตโนมัติทุกต้นเดือน (ผ่าน GAS trigger) เดือนถัดไปจะเริ่มเห็นแนวโน้ม<br>ค่าปัจจุบัน: <strong style="color:#16A34A">${currentRate}%</strong></div>`;
+  }
+  const W=640,H=180,PL=36,PR=14,PT=14,PB=28;
+  const iw=W-PL-PR,ih=H-PT-PB;
+  const vals=pts.map(p=>p.compliance_rate);
+  const yMin=Math.max(0,Math.min(...vals)-10),yMax=100;
+  const X=i=>PL+(pts.length===1?iw/2:i/(pts.length-1)*iw);
+  const Y=v=>PT+ih-( (v-yMin)/(yMax-yMin||1)*ih );
+  const line=pts.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(p.compliance_rate).toFixed(1)}`).join(' ');
+  const area=line+` L${X(pts.length-1).toFixed(1)},${(PT+ih).toFixed(1)} L${X(0).toFixed(1)},${(PT+ih).toFixed(1)} Z`;
+  const grid=[yMin,Math.round((yMin+yMax)/2),yMax].map(v=>`
+    <line x1="${PL}" y1="${Y(v)}" x2="${W-PR}" y2="${Y(v)}" stroke="#E8ECF0" stroke-dasharray="3,3"/>
+    <text x="${PL-6}" y="${Y(v)+3}" text-anchor="end" font-size="9" fill="#9CA3AF" font-family="Sarabun">${v}%</text>`).join('');
+  const thMonth=m=>{const[y,mo]=m.split('-');return['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][+mo-1]||m;};
+  const dots=pts.map((p,i)=>`
+    <circle cx="${X(i).toFixed(1)}" cy="${Y(p.compliance_rate).toFixed(1)}" r="3.5" fill="${p._live?'#D97706':'#16A34A'}"/>
+    <text x="${X(i).toFixed(1)}" y="${Y(p.compliance_rate)-8}" text-anchor="middle" font-size="9.5" font-weight="700" fill="${p._live?'#D97706':'#16A34A'}" font-family="Sarabun">${p.compliance_rate}%</text>
+    <text x="${X(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#9CA3AF" font-family="Sarabun">${thMonth(p.month)}</text>`).join('');
+  return`<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block">
+    ${grid}
+    <path d="${area}" fill="rgba(22,163,74,.08)"/>
+    <path d="${line}" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}
+  </svg>
+  <div class="legend-text" style="font-size:10.5px;margin-top:4px">🟢 ค่าที่บันทึกรายเดือน &nbsp;·&nbsp; 🟠 ค่า ณ ปัจจุบัน (real-time)</div>`;
+}
+
 async function pgExecutive(el){
   el.innerHTML=spin('กำลังสร้างรายงานผู้บริหาร...');
   try{
-    const[allEmps,allLics]=await Promise.all([fsGetAll('employees'),fsGetAll('licenses')]);
+    const[allEmps,allLics,snaps]=await Promise.all([fsGetAll('employees'),fsGetAll('licenses'),fsGetAll('compliance_snapshots').catch(()=>[])]);
     const lics=allLics.map(normalizeLic);
     const total_employees=allEmps.length;
     const licStatus={normal:0,'45d':0,'30d':0,'15d':0,expired:0};
@@ -967,6 +1298,7 @@ async function pgExecutive(el){
     const crit=lics.filter(l=>l.days_remaining>=0&&l.days_remaining<=15);
     const warn30=lics.filter(l=>l.days_remaining>15&&l.days_remaining<=30);
     const warn45=lics.filter(l=>l.days_remaining>30&&l.days_remaining<=45);
+    const trendHTML=trendChart(snaps,compliance_rate);
 
     el.innerHTML=`
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
@@ -1005,10 +1337,14 @@ async function pgExecutive(el){
         </div>
       </div>
       <div class="card card-p">
+        <div class="stitle">📈 แนวโน้ม Compliance รายเดือน</div>
+        ${trendHTML}
+      </div>
+      <div class="card card-p">
         <div class="stitle">🏢 สรุปตามศูนย์วิจัย</div>
         <div class="table-wrap">
           <table class="rtable">
-            <thead><tr><th>ศูนย์วิจัย</th><th style="text-align:center">พนักงาน</th><th style="text-align:center;color:#16A34A">ปกติ</th><th style="text-align:center;color:#D97706">ใกล้หมด</th><th style="text-align:center;color:#DC2626">หมดอายุ</th><th style="text-align:center">Compliance</th></tr></thead>
+            <thead><tr><th>ศูนย์วิจัย</th><th style="text-align:center">ใบขับขี่</th><th style="text-align:center;color:#16A34A">ปกติ</th><th style="text-align:center;color:#D97706">ใกล้หมด</th><th style="text-align:center;color:#DC2626">หมดอายุ</th><th style="text-align:center">Compliance</th></tr></thead>
             <tbody>
               ${centers.map(c=>{
                 const tot=(c.normal+c.near_expiry+c.expired)||1;
@@ -1124,6 +1460,11 @@ function toggleDark(){
 if(localStorage.getItem('dlms-dark')==='1'){
   document.body.classList.add('dark');
   setTimeout(()=>{const b=document.getElementById('dark-btn');if(b)b.textContent='☀️';},100);
+}
+
+// ── SERVICE WORKER (PWA) ──
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e)));
 }
 </script>
 </body>
