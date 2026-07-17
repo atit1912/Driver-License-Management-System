@@ -336,9 +336,9 @@ const fdate=d=>{
   if(!d||d==='-'||d==='undefined'||d==='')return '-';
   try{
     if(d&&d.toDate) d=d.toDate();
-    if(d instanceof Date){const dd=d.getDate(),mm=d.getMonth()+1,yy=d.getFullYear();return`${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}/${yy}`;}
-    if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(d)){const[dd,mm,yy]=d.split('/').map(Number);return`${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}/${yy}`;}
-    if(/^\d{4}-\d{2}-\d{2}/.test(d)){const[yy,mm,dd]=d.substring(0,10).split('-').map(Number);return`${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}/${yy}`;}
+    if(d instanceof Date){const dd=d.getDate(),mm=d.getMonth()+1,yy=d.getFullYear()+543;return`${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}/${yy}`;}
+    if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(d)){const[dd,mm,yy]=d.split('/').map(Number);return`${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}/${yy+543}`;}
+    if(/^\d{4}-\d{2}-\d{2}/.test(d)){const[yy,mm,dd]=d.substring(0,10).split('-').map(Number);return`${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}/${yy+543}`;}
     return d;
   }catch{return d}
 };
