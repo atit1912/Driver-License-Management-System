@@ -1003,7 +1003,12 @@ async function removeCertPhoto(trnId,empId){
 }
 
 // ── TRAINING MODAL ──
-function addTraining(empId){showTrainingModal(null,empId,'','','','');}
+// หลักสูตรมาตรฐานที่ใช้บ่อยที่สุด — เติมให้อัตโนมัติเมื่อบันทึกการอบรมใหม่ (แก้ไขได้)
+const DEFAULT_COURSE={
+  name:'การบริหารความเสี่ยงด้านยานยนต์ และการดูแลรักษารถยนต์เบื้องต้น ประจำปี 2569',
+  trainer:'นายพิษณุกาญจน์ นิลพันธ์'
+};
+function addTraining(empId){showTrainingModal(null,empId,DEFAULT_COURSE.name,'',DEFAULT_COURSE.trainer,'');}
 function editTraining(trnId,empId){
   const t=(empCache._detail?.trns||[]).find(x=>x.id===trnId)||{};
   showTrainingModal(trnId,empId,t.course_name||'',t.training_date||'',t.trainer||'',t.next_due_date||'');
@@ -1018,6 +1023,7 @@ function showTrainingModal(trnId,empId,cn,td,tr,nd){
     <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">
       <div style="font-size:16px;font-weight:700;margin-bottom:4px">${isEdit?'✏️ แก้ไขการอบรม':'➕ บันทึกการอบรม'}</div>
       <div style="font-size:12px;color:#6B7280;margin-bottom:18px">${isEdit?'แก้ไขข้อมูลการอบรม':'เพิ่มประวัติการอบรมใหม่'}</div>
+      ${!isEdit?`<div style="background:#EFF6FF;border-radius:8px;padding:9px 12px;font-size:11.5px;color:#1D4ED8;margin-bottom:14px">💡 เติมชื่อหลักสูตร/ผู้สอนให้แล้ว เหลือแค่เลือกวันที่ — แนบใบ Cer ได้หลังบันทึก</div>`:''}
       <div style="display:flex;flex-direction:column;gap:12px">
         <div><div class="ilabel" style="margin-bottom:5px">หลักสูตร *</div>
           <input id="trn-course" value="${escAttr(cn)}" placeholder="เช่น การขับรถอย่างปลอดภัย" style="width:100%;padding:10px 12px;border:1px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:Sarabun,sans-serif;outline:none">
