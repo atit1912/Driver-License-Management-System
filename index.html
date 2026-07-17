@@ -777,8 +777,20 @@ function pgDetail(el,{emp,lics,trns,hist}){
         <div><div class="ilabel">ครบกำหนดถัดไป</div><div class="ival ${ds!=='normal'?'hl':''}">${fdate(t.next_due_date)}</div></div>
         <div><div class="ilabel">สถานะ</div><div class="ival">${badge(ds,d,true)}</div></div>
       </div>
-      <button onclick="editTraining('${t.id}','${empId}')"
-        style="display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">✏️ แก้ไข</button>
+      ${t.cert_data?`<div style="margin-top:12px">
+        <div class="ilabel" style="margin-bottom:5px">📜 ใบ Certificate (กดเพื่อขยาย)</div>
+        <img src="${t.cert_data}" onclick="viewCertPhoto('${t.id}')"
+          style="max-width:220px;max-height:150px;border-radius:9px;border:1px solid #E8ECF0;cursor:zoom-in;display:block;object-fit:contain;background:#fff"
+          onerror="this.style.display='none'">
+      </div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button onclick="editTraining('${t.id}','${empId}')"
+          style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#D97706;padding:6px 12px;background:#FEF3C7;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">✏️ แก้ไข</button>
+        <button onclick="pickCertPhoto('${t.id}','${empId}')"
+          style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#1D4ED8;padding:6px 12px;background:#EFF6FF;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">📷 ${t.cert_data?'เปลี่ยนใบ Cer':'เพิ่มใบ Cer'}</button>
+        ${t.cert_data?`<button onclick="removeCertPhoto('${t.id}','${empId}')"
+          style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#DC2626;padding:6px 12px;background:#FEF2F2;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:500">🗑️ ลบใบ Cer</button>`:''}
+      </div>
     </div>`;
   }).join('');
 
@@ -947,6 +959,47 @@ async function removeLicPhoto(licId,empId){
     if(l)l.photo_data='';
     pgDetail(document.getElementById('content'),empCache._detail);
   }catch(e){alert('❌ ลบรูปไม่สำเร็จ: '+e.message);}
+}
+
+// ── CERTIFICATE PHOTO (การอบรม — เก็บ base64 ใน Firestore เช่นเดียวกับรูปใบขับขี่) ──
+function pickCertPhoto(trnId,empId){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=async()=>{
+    const file=inp.files[0];if(!file)return;
+    if(!file.type.startsWith('image/')){alert('กรุณาเลือกไฟล์รูปภาพ');return;}
+    try{
+      const dataUrl=await compressImage(file);
+      if(dataUrl.length>950000){alert('❌ รูปใหญ่เกินไปหลังบีบอัด กรุณาถ่าย/ครอปให้เล็กลง');return;}
+      await fsUpdate('trainings',trnId,{cert_data:dataUrl});
+      const t=(empCache._detail?.trns||[]).find(x=>x.id===trnId);
+      if(t)t.cert_data=dataUrl;
+      pgDetail(document.getElementById('content'),empCache._detail);
+    }catch(e){alert('❌ บันทึกใบ Cer ไม่สำเร็จ: '+e.message);}
+  };
+  inp.click();
+}
+function viewCertPhoto(trnId){
+  const t=(empCache._detail?.trns||[]).find(x=>x.id===trnId);
+  if(!t?.cert_data)return;
+  const modal=document.createElement('div');
+  modal.id='photo-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99;display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+  modal.onclick=()=>modal.remove();
+  modal.innerHTML=`
+    <img src="${t.cert_data}" style="max-width:100%;max-height:90vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6);background:#fff" onclick="event.stopPropagation()">
+    <button onclick="document.getElementById('photo-modal').remove()"
+      style="position:fixed;top:14px;right:14px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;border:none;font-size:18px;cursor:pointer;line-height:1">✕</button>`;
+  document.body.appendChild(modal);
+}
+async function removeCertPhoto(trnId,empId){
+  if(!confirm('ลบใบ Certificate นี้?'))return;
+  try{
+    await fsUpdate('trainings',trnId,{cert_data:''});
+    const t=(empCache._detail?.trns||[]).find(x=>x.id===trnId);
+    if(t)t.cert_data='';
+    pgDetail(document.getElementById('content'),empCache._detail);
+  }catch(e){alert('❌ ลบใบ Cer ไม่สำเร็จ: '+e.message);}
 }
 
 // ── TRAINING MODAL ──
