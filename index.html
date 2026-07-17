@@ -494,10 +494,14 @@ async function pgDashboard(el){
     const [allEmps,allLics,allTrns]=await Promise.all([fsGetAll('employees'),fsGetAll('licenses'),fsGetAll('trainings')]);
     const lics=allLics.map(normalizeLic);
 
-    // Training summary — นับพนักงานที่มีประวัติอบรมแล้ว
+    // Training summary — นับจากใบขับขี่เครือฯ เท่านั้น
+    // อบรมแล้ว = training_status ในใบเครือฯ ระบุว่าอบรมแล้ว หรือมีบันทึกการอบรมในระบบ
+    const isTrainedStatus=s=>{const v=(s||'').trim();return v!==''&&v!=='-'&&v!=='ยังไม่อบรม';};
     const trainedIds=new Set(allTrns.map(t=>t.employee_id));
-    const trainedCount=allEmps.filter(e=>trainedIds.has(e.id)||trainedIds.has(e.employee_id)).length;
-    const pendingCount=allEmps.length-trainedCount;
+    const corpLics=lics.filter(l=>l.license_type==='ใบขับขี่เครือฯ');
+    const trainedCount=corpLics.filter(l=>isTrainedStatus(l.training_status)||trainedIds.has(l.employee_id)).length;
+    const trnBase=corpLics.length;
+    const pendingCount=trnBase-trainedCount;
     const trnDue=allTrns.map(t=>{const nd=toDate(t.next_due_date);const d=nd?daysUntil(nd):null;return{...t,_d:d,_s:calcStatus(d)};}).filter(t=>t._s!=='normal').length;
 
     // KPI
@@ -593,10 +597,10 @@ async function pgDashboard(el){
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
         <div class="cbar-track" style="height:8px;flex:1">
-          <div class="cbar-seg" style="width:${Math.round(trainedCount/(allEmps.length||1)*100)}%;background:#16A34A"></div>
-          <div class="cbar-seg" style="width:${Math.round(pendingCount/(allEmps.length||1)*100)}%;background:#D97706"></div>
+          <div class="cbar-seg" style="width:${Math.round(trainedCount/(trnBase||1)*100)}%;background:#16A34A"></div>
+          <div class="cbar-seg" style="width:${Math.round(pendingCount/(trnBase||1)*100)}%;background:#D97706"></div>
         </div>
-        <div class="legend-text" style="font-size:11px">${trainedCount}/${allEmps.length} คน (${Math.round(trainedCount/(allEmps.length||1)*100)}%)</div>
+        <div class="legend-text" style="font-size:11px">${trainedCount}/${trnBase} คน (${Math.round(trainedCount/(trnBase||1)*100)}%) · อ้างอิงใบขับขี่เครือฯ</div>
       </div>
     </div>
     <div class="card card-p">
@@ -1116,15 +1120,20 @@ let trnTab='pending', trnData=null;
 async function pgTrainings(el){
   el.innerHTML=spin('กำลังโหลดข้อมูลการอบรม...');
   try{
-    const[allEmps,allTrns]=await Promise.all([fsGetAll('employees'),fsGetAll('trainings')]);
+    const[allEmps,allTrns,allLics]=await Promise.all([fsGetAll('employees'),fsGetAll('trainings'),fsGetAll('licenses')]);
+    const isTrainedStatus=s=>{const v=(s||'').trim();return v!==''&&v!=='-'&&v!=='ยังไม่อบรม';};
+    // อ้างอิงใบขับขี่เครือฯ เท่านั้น
+    const corpByEmp={};
+    allLics.filter(l=>l.license_type==='ใบขับขี่เครือฯ').forEach(l=>{corpByEmp[l.employee_id]=l;});
     const trnByEmp={};
     allTrns.forEach(t=>{
       const k=t.employee_id;
       if(!trnByEmp[k])trnByEmp[k]=[];
       trnByEmp[k].push(t);
     });
-    const rows=allEmps.map(e=>{
+    const rows=allEmps.filter(e=>corpByEmp[e.id||e.employee_id]).map(e=>{
       const id=e.id||e.employee_id;
+      const corp=corpByEmp[id];
       const trns=(trnByEmp[id]||[]).map(t=>{
         const nd=toDate(t.next_due_date);
         const d=nd?daysUntil(nd):null;
@@ -1132,10 +1141,11 @@ async function pgTrainings(el){
       }).sort((a,b)=>(b.training_date||'').localeCompare(a.training_date||''));
       const latest=trns[0]||null;
       return{id,name:e.full_name,center:e.research_center,trns,latest,
-        trained:trns.length>0,
+        corpTrainStatus:corp.training_status||'',
+        trained:isTrainedStatus(corp.training_status)||trns.length>0,
         due:trns.some(t=>t._s!=='normal')};
     });
-    trnData={rows,total:allEmps.length};
+    trnData={rows,total:rows.length};
     renderTrnPage(el);
   }catch(e){el.innerHTML=err(e.message);}
 }
@@ -1147,7 +1157,7 @@ function renderTrnPage(el){
   const tabs=[['pending','⏳ ยังไม่อบรม',pending.length],['due','🔁 ครบกำหนดซ้ำ',due.length],['trained','✅ อบรมแล้ว',trained.length]];
   el.innerHTML=`
   <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-    ${kpi('อบรมแล้ว',trained.length,`จาก ${total} คน`,'#16A34A','#DCFCE7','✅')}
+    ${kpi('อบรมแล้ว',trained.length,`จาก ${total} คน (ใบเครือฯ)`,'#16A34A','#DCFCE7','✅')}
     ${kpi('ยังไม่อบรม',pending.length,'ต้องจัดอบรม','#D97706','#FEF3C7','⏳')}
     ${kpi('ครบกำหนดอบรมซ้ำ',due.length,'ภายใน 45 วัน/เกินแล้ว','#DC2626','#FEE2E2','🔁')}
   </div>
@@ -1178,7 +1188,7 @@ function trnRows(){
         <div class="eavatar">${avatarChar(r.name)}</div>
         <div>
           <div style="font-size:14px;font-weight:600">${r.name}</div>
-          <div style="font-size:11.5px;color:#9CA3AF;margin-top:1px">${CS[r.center]||r.center}${r.latest?` · อบรมล่าสุด ${fdate(r.latest.training_date)}`:''}</div>
+          <div style="font-size:11.5px;color:#9CA3AF;margin-top:1px">${CS[r.center]||r.center}${r.latest?` · อบรมล่าสุด ${fdate(r.latest.training_date)}`:r.trained&&r.corpTrainStatus?` · ${r.corpTrainStatus}`:''}</div>
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
@@ -1196,6 +1206,7 @@ function dlTrnCSV(){
   if(!list.length){alert('ไม่มีรายชื่อในแท็บนี้');return;}
   const tabName={pending:'ยังไม่อบรม',due:'ครบกำหนดอบรมซ้ำ',trained:'อบรมแล้ว'}[trnTab];
   const data=list.map((r,i)=>({ลำดับ:i+1,'ชื่อ-นามสกุล':r.name,ศูนย์วิจัย:r.center,
+    สถานะอบรม:r.latest?'มีบันทึกอบรม':(r.trained?r.corpTrainStatus||'อบรมแล้ว':'ยังไม่อบรม'),
     อบรมล่าสุด:r.latest?fdate(r.latest.training_date):'-',
     หลักสูตร:r.latest?.course_name||'-',
     ครบกำหนดถัดไป:r.latest?fdate(r.latest.next_due_date):'-'}));
